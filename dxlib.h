@@ -24,27 +24,24 @@ typedef uint8_t byte;
 
 
 
-#define PAD_INPUT_LEFT                              (0x00000002)    // ←チェックマスク
-#define PAD_INPUT_RIGHT                             (0x00000004)    // →チェックマスク
-#define PAD_INPUT_DOWN                              (0x00000001)    // ↓チェックマスク
-#define KEY_INPUT_F1                                1           // Ｆ１キー
+#define PAD_INPUT_DOWN                              (0x00000001)
+#define PAD_INPUT_LEFT                              (0x00000002)
+#define PAD_INPUT_RIGHT                             (0x00000004)
+#define PAD_INPUT_UP                                (0x00000008)
 
-#define KEY_INPUT_0                                 0           // ０キー
-#define KEY_INPUT_O                                 0           // Ｏキー
-#define PAD_INPUT_UP                                (0x00000008)    // ↑チェックマスク
-#define KEY_INPUT_Z                                 0           // Ｚキー
-#define KEY_INPUT_1                                 0           // Ｚキー
-#define KEY_INPUT_ESCAPE                        0       // エスケープキー
-#define KEY_INPUT_SPACE                     0       // エスケープキー
-#define KEY_INPUT_RETURN                        0       // エスケープキー
-
-
+#define KEY_INPUT_F1                                1
+#define KEY_INPUT_0                                 48
+#define KEY_INPUT_1                                 49
+#define KEY_INPUT_O                                 79
+#define KEY_INPUT_Z                                 90
+#define KEY_INPUT_ESCAPE                            27
+#define KEY_INPUT_SPACE                             32
+#define KEY_INPUT_RETURN                            13
 
 
 
 
-// グラフィックに設定する透過色をセットする
-extern int SetTransColor(int Red, int Green, int Blue);
+
 
 // 画像ファイルのメモリへの読みこみ
 extern int LoadGraph(const char *FileName, int NotUse3DFlag = false);
@@ -77,10 +74,6 @@ extern int DxLib_End(void);
 extern int SetFontSize(int FontSize);
 // フォントの太さをセット
 extern int SetFontThickness(int ThickPal);
-// 描画先画面のセット
-extern int SetDrawScreen(int DrawScreen);
-// 画面の状態を初期化する
-extern int ClearDrawScreen();
 
 // ３原色値から現在の画面モードに対応した色データ値を得る
 extern uint32_t GetColor(int Red, int Green, int Blue);

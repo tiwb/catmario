@@ -54,9 +54,11 @@ static int rand(int Rand);
 void end();
 
 //描画
-int color;
+extern int color;
+extern int mirror;
 void setfont(int a);
 void setcolor(int red, int green, int blue);
+void clearscreen();
 void setc0();
 void setc1();
 void drawpixel(int a, int b);
@@ -66,11 +68,7 @@ void fillrect(int a, int b, int c, int d);
 void drawarc(int a, int b, int c, int d);
 void fillarc(int a, int b, int c, int d);
 int grap[161][8], mgrap[51];
-int loadimage(const char* b);
-int loadimage(int a, int x, int y, int r, int z);
-int mirror;
 void drawimage(int mx, int a, int b);
-void drawimage(int mx, int a, int b, int c, int d, int e, int f);
 void setre();
 void setre2();
 void setno();
@@ -231,7 +229,6 @@ long stime;
 
 // プログラムは WinMain から始まります
 int main() {
-
   //画面サイズ設定
   SetGraphMode(fxmax / 100, fymax / 100, 16);
 
@@ -246,7 +243,7 @@ int main() {
   SetFontThickness(4);
 
   // Main loop
-  emscripten_set_main_loop(Mainprogram, 60, 1);
+  emscripten_set_main_loop(Mainprogram, 0, 1);
 
   // ソフトの終了
   return 0;
@@ -258,17 +255,12 @@ int main() {
 void rpaint() {
 
   //ダブルバッファリング
-  SetDrawScreen(DX_SCREEN_BACK);
-
-  ClearDrawScreen();
-
   setcolor(0, 0, 0);
-  //if (stagecolor==1)setcolor(170,170,255);
   if (stagecolor == 1) setcolor(160, 180, 250);
   if (stagecolor == 2) setcolor(10, 10, 10);
   if (stagecolor == 3) setcolor(160, 180, 250);
   if (stagecolor == 4) setcolor(10, 10, 10);
-  fillrect(0, 0, fxmax, fymax);
+  clearscreen();
 
 
   /*
@@ -1118,11 +1110,11 @@ void rpaint() {
   } //if (mainproc==10){
 
 
-//タイトル
+  //タイトル
   if (mainproc == 100) {
 
     setcolor(160, 180, 250);
-    fillrect(0, 0, fxmax, fymax);
+    clearscreen();
 
     drawimage(mgrap[30], 240 - 380 / 2, 60);
 
@@ -1140,11 +1132,11 @@ void rpaint() {
     setcolor(0, 0, 0);
     str("Enterキーを押せ!!", 240 - 8 * 20 / 2, 250);
 
-  } //if (mainproc==100){
+  } //if (mainproc==100)
 
 
 
-//DrawFormatString(230,200,GetColor(255,255,255)," × %d,%d,%d",sta,stb,stc);
+  //DrawFormatString(230,200,GetColor(255,255,255)," × %d,%d,%d",sta,stb,stc);
 
   ScreenFlip();
 
@@ -1156,11 +1148,14 @@ void rpaint() {
 
 
 
+
 //メインプログラム
 void Mainprogram() {
+  int time = GetNowCount();
+  if (time - stime < 1000 / 30)
+    return;
 
-  stime = long(GetNowCount());
-
+  stime = time;
 
   if (ending == 1) mainproc = 2;
 
@@ -3343,7 +3338,7 @@ void Mainprogram() {
   //30-fps
   xx[0] = 30;
   if (CheckHitKey(KEY_INPUT_SPACE) == 1) {xx[0] = 60; }
-  wait2(stime, long(GetNowCount()), 1000 / xx[0]);
+  wait2(stime, GetNowCount(), 1000 / xx[0]);
   //wait(20);
 
 }      //Mainprogram()
@@ -3482,67 +3477,6 @@ void end() {
 }
 
 
-//画像関係
-//{
-//色かえ(指定)
-void setcolor(int red, int green, int blue) {
-  color = GetColor(red, green, blue);
-}
-//色かえ(黒)(白)
-void setc0() {color = GetColor(0, 0, 0); }
-void setc1() {color = GetColor(255, 255, 255); }
-
-//点
-void drawpixel(int a, int b) {DrawPixel(a, b, color); }
-//線
-void drawline(int a, int b, int c, int d) {DrawLine(a, b, c, d, color); }
-//四角形(塗り無し)
-void drawrect(int a, int b, int c, int d) {DrawBox(a, b, a + c, b + d, color, FALSE); }
-//四角形(塗り有り)
-void fillrect(int a, int b, int c, int d) {DrawBox(a, b, a + c, b + d, color, TRUE); }
-//円(塗り無し)
-void drawarc(int a, int b, int c, int d) {DrawOval(a, b, c, d, color, FALSE); }
-//円(塗り有り)
-void fillarc(int a, int b, int c, int d) {DrawOval(a, b, c, d, color, TRUE); }
-
-//画像の読み込み
-int loadimage(const char* x) {
-  //mgrap[a]=LoadGraph(b);
-  return LoadGraph(x);
-}
-int loadimage(int a, int x, int y, int r, int z) {
-  return DerivationGraph(x, y, r, z, a);
-}
-
-//画像表示
-void drawimage(int mx, int a, int b) {
-  if (mirror == 0)
-    DrawGraph(a, b, mx, TRUE);
-  if (mirror == 1)
-    DrawTurnGraph(a, b, mx, TRUE);
-}
-void drawimage(int mx, int a, int b, int c, int d, int e, int f) {
-  int m;
-  m = DerivationGraph(c, d, e, f, mx);
-  if (mirror == 0)
-    DrawGraph(a, b, m, TRUE);
-  if (mirror == 1)
-    DrawTurnGraph(a, b, m, TRUE);
-}
-
-//反転
-void setre() {}     //g.setFlipMode(Graphics.FLIP_HORIZONTAL);}
-void setre2() {}     //g.setFlipMode(Graphics.FLIP_VERTICAL);}
-void setno() {}     //g.setFlipMode(Graphics.FLIP_NONE);}
-
-/*
-   //文字
-   void str(char d[],int a,int b){
-   //char d[]=c;
-   DrawString(a,b,d,color);
-   }
- */
-
 //文字
 void str(const char *x, int a, int b) {
   //char d[]="あ";
@@ -3550,48 +3484,10 @@ void str(const char *x, int a, int b) {
   //DrawString(10,10,xs[3].c_str(),color);
 
   xx[2] = 4;
-
-
 }
-
-/*
-   //数値を文字に変換
-   void strchange(string x,int a){
-   }
- */
-
-/*
-   //中央にあわせる//(font)
-   void str1(String c,int r,int b){
-   int a=0,x=0;
-   int d=6;
-
-   //x=c.length()*d;//tiny.6
-   x=r*d;
-   a=120-x/2;
-
-   g.drawString(c,a,b);
-   }
- */
-
-
-//string→int
-/*
-   char str[] = "12345";
-   int num;
-
-   num = atoi(str);
- */
-
 
 //文字ラベル変更
 void setfont(int a) {
-  /*
-     if (a==0)g.setFont(Font.getFont(Font.SIZE_TINY));
-     if (a==1)g.setFont(Font.getFont(Font.SIZE_SMALL));
-     if (a==2)g.setFont(Font.getFont(Font.SIZE_MEDIUM));
-     if (a==3)g.setFont(Font.getFont(Font.SIZE_LARGE));
-   */
 }
 
 //音楽再生

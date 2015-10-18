@@ -29,9 +29,6 @@ void loadg(void) {
 
   //画像読み込み
 
-  // 透過色を変更
-  SetTransColor(9 * 16 + 9, 255, 255);
-
   //プレイヤー
   mgrap[0] = LoadGraph("res/player.png");
   //ブロック
@@ -49,7 +46,7 @@ void loadg(void) {
   //おまけ2
   mgrap[7] = LoadGraph("res/omake2.png");
   //タイトル
-  mgrap[30] = LoadGraph("res/syobon3.PNG");
+  mgrap[30] = LoadGraph("res/syobon3.png");
 
 
   //プレイヤー読み込み
