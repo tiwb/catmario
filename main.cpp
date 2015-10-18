@@ -4,15 +4,14 @@
 
 void loadg();
 
-//String 使用
-#include <string>
-using namespace std;
-
+static inline int abs(int v) {
+  return v < 0 ? -v : v;
+}
 
 //プログラム中
 //main-10
 //タイトル-100
-int main = 100, maintm = 0;
+int mainproc = 100, maintm = 0;
 
 //ステージ
 int stagecolor = 0;
@@ -49,9 +48,9 @@ int maint;
 
 //サブクラス
 //(ウエイト系
-void wait(int interval);
-void wait2(long stime, long etime, int FLAME_TIME);
-int rand(int Rand);
+static void wait(int interval);
+static void wait2(long stime, long etime, int FLAME_TIME);
+static int rand(int Rand);
 void end();
 
 //描画
@@ -67,7 +66,7 @@ void fillrect(int a, int b, int c, int d);
 void drawarc(int a, int b, int c, int d);
 void fillarc(int a, int b, int c, int d);
 int grap[161][8], mgrap[51];
-int loadimage(string b);
+int loadimage(const char* b);
 int loadimage(int a, int x, int y, int r, int z);
 int mirror;
 void drawimage(int mx, int a, int b);
@@ -79,7 +78,7 @@ int oto[151];
 void ot(int x); void bgmchange(int x);
 
 //文字
-void str(string c, int a, int b);
+void str(const char* c, int a, int b);
 
 
 //)
@@ -148,7 +147,7 @@ int titem[tmax], txtype[tmax];
 
 //メッセージブロック
 int tmsgtm, tmsgtype, tmsgx, tmsgy, tmsgnobix, tmsgnobiy, tmsg;
-void ttmsg(); void txmsg(string x, int a);
+void ttmsg(); void txmsg(const char* x, int a);
 void setfont(int x, int y);
 
 //効果を持たないグラ
@@ -203,7 +202,7 @@ int srsok[srmax], srmovep[srmax], srmove[srmax];
 //スクロール範囲
 int fx = 0, fy = 0, fzx, fzy, scrollx, scrolly;
 //全体のポイント
-int fma = 0, fmb = 0;
+int fma1 = 0, fmb = 0;
 //強制スクロール
 int kscroll = 0;
 //画面サイズ(ファミコンサイズ×2)(256-224)
@@ -222,7 +221,7 @@ int blacktm = 1, blackx = 0;
 //自由な値
 int xx[91];
 double xd[11];
-string xs[31];
+const char* xs[31];
 
 
 //タイマー測定
@@ -231,29 +230,13 @@ long stime;
 
 
 // プログラムは WinMain から始まります
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+int main() {
 
   //画面サイズ設定
   SetGraphMode(fxmax / 100, fymax / 100, 16);
-  //
-  SetWindowIconID(127);
-  //最大化の防止
-  ChangeWindowMode(TRUE);
-  //タイトルの変更
-  SetMainWindowText("しょぼんのアクション");
-  //applog無効
-  SetOutApplicationLogValidFlag(false);
-
 
   // ＤＸライブラリ初期化処理(エラーが起きたら直ちに終了)
   if (DxLib_Init() == -1) return -1;
-
-  // 点を打つ
-  //DrawPixel( 320 , 240 , 0xffff ) ;
-
-  // キー入力待ち
-  //WaitKey();
-
 
   //全ロード
   loadg();
@@ -262,18 +245,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
   SetFontSize(16);
   SetFontThickness(4);
 
-  //ループ
-  //for (maint=0;maint<=2;maint++){
-  while (ProcessMessage() == 0 && CheckHitKey(KEY_INPUT_ESCAPE) == 0) {
-
-    maint = 0; Mainprogram();
-    if (maint == 3) break;
-  }
-
-
-
-  //ＤＸライブラリ使用の終了処理
-  DxLib_End();
+  // Main loop
+  emscripten_set_main_loop(Mainprogram, 60, 1);
 
   // ソフトの終了
   return 0;
@@ -311,7 +284,7 @@ void rpaint() {
    */
 
 
-  if (main == 1 && zxon >= 1) {
+  if (mainproc == 1 && zxon >= 1) {
 
 
     //背景
@@ -330,13 +303,13 @@ void rpaint() {
 
         //51
         if (ntype[t] == 100) {
-          DrawFormatString(xx[0] / 100 + fma, xx[1] / 100 + fmb, GetColor(255, 255, 255), "51");
+          DrawFormatString(xx[0] / 100 + fma1, xx[1] / 100 + fmb, GetColor(255, 255, 255), "51");
         }
 
         if (ntype[t] == 101)
-          DrawFormatString(xx[0] / 100 + fma, xx[1] / 100 + fmb, GetColor(255, 255, 255), "ゲームクリアー");
+          DrawFormatString(xx[0] / 100 + fma1, xx[1] / 100 + fmb, GetColor(255, 255, 255), "ゲームクリアー");
         if (ntype[t] == 102)
-          DrawFormatString(xx[0] / 100 + fma, xx[1] / 100 + fmb, GetColor(255, 255, 255), "プレイしてくれてありがとー");
+          DrawFormatString(xx[0] / 100 + fma1, xx[1] / 100 + fmb, GetColor(255, 255, 255), "プレイしてくれてありがとー");
 
       }
     }   //t
@@ -384,12 +357,12 @@ void rpaint() {
         }  //4
 
         //if (egtype[t]==1){
-        //drawimage(image[0],xx[0]/100+fma+5,xx[1]/100+fmb+5,0,0,10,10);
+        //drawimage(image[0],xx[0]/100+fma1+5,xx[1]/100+fmb+5,0,0,10,10);
         //おもしろ
-        //drawimage(image[2],xx[0]/100+fma,xx[1]/100+fmb,0,0,20,20);
+        //drawimage(image[2],xx[0]/100+fma1,xx[1]/100+fmb,0,0,20,20);
         //}
         //if (egtype[t]==2)
-        //drawimage(image[11],xx[0]/100+fma,xx[1]/100+fmb,0,0,25,16);
+        //drawimage(image[11],xx[0]/100+fma1,xx[1]/100+fmb,0,0,25,16);
 
 
       }
@@ -457,26 +430,26 @@ void rpaint() {
            if (srgtype[t]==1){setcolor(40,40,240);}
            if (srgtype[t]>=2 && srgtype[t]<=6)setcolor(240,240,40);
            if (srgtype[t]==7)setcolor(0,240,0);
-           fillrect(xx[0]/100+fma,xx[1]/100+fmb, src[t]/100, srd[t]/100);
+           fillrect(xx[0]/100+fma1,xx[1]/100+fmb, src[t]/100, srd[t]/100);
            setc0();
            if (srgtype[t]==0){setcolor(160,80,0);}
            if (srgtype[t]==1){setcolor(0,0,200);}
            if (srgtype[t]>=2 && srgtype[t]<=6)setcolor(200,200,0);
            if (srgtype[t]==7)setcolor(0,210,0);
-           drawrect(xx[0]/100+fma,xx[1]/100+0+fmb, src[t]/100, srd[t]/100);
+           drawrect(xx[0]/100+fma1,xx[1]/100+0+fmb, src[t]/100, srd[t]/100);
            }}
 
            //(トゲ)
            if (srtype[t]==1 || srtype[t]==2){
            if (srtype[t]==2)setre2();
-           //drawimage(image[6],xx[0]/100+fma,xx[1]/100+fmb,0,0,src[t]/100, srd[t]/100+2);
+           //drawimage(image[6],xx[0]/100+fma1,xx[1]/100+fmb,0,0,src[t]/100, srd[t]/100+2);
 
            xx[20]=2000;
            for (tt=0;tt<=src[t]/xx[20];tt++){
            xx[6]=xx[20]/100;xx[7]=xx[20]/100;if (src[t]/xx[20]==tt){xx[7]=(src[t]%xx[20])/100;}
            if (xx[6]<=0)xx[6]=1;if (xx[7]<=0)xx[7]=1;
-           //drawimage(im[0],xx[0]/100+fma+tt*(xx[6]),xx[1]/100+fmb,5,0,xx[7],10);
-           drawimage(image[6],xx[0]/100+fma+tt*(xx[6]),xx[1]/100+fmb,0,0,xx[7], srd[t]/100+2);
+           //drawimage(im[0],xx[0]/100+fma1+tt*(xx[6]),xx[1]/100+fmb,5,0,xx[7],10);
+           drawimage(image[6],xx[0]/100+fma1+tt*(xx[6]),xx[1]/100+fmb,0,0,xx[7], srd[t]/100+2);
            }
 
          */
@@ -567,7 +540,7 @@ void rpaint() {
 
         //デフラグさん
         if (atype[t] == 6) {
-          if (atm[t] >= 10 && atm[t] <= 19 || atm[t] >= 100 && atm[t] <= 119 || atm[t] >= 200) {
+          if ((atm[t] >= 10 && atm[t] <= 19) || (atm[t] >= 100 && atm[t] <= 119) || atm[t] >= 200) {
             drawimage(grap[150][3], xx[0] / 100, xx[1] / 100);
           } else {
             drawimage(grap[6][3], xx[0] / 100, xx[1] / 100);
@@ -678,15 +651,15 @@ void rpaint() {
 
         if (txtype[t] != 10) {
 
-          if (ttype[t] == 100 || ttype[t] == 101 || ttype[t] == 102 || ttype[t] == 103 ||  ttype[t] == 104 && txtype[t] == 1 || ttype[t] == 114 && txtype[t] == 1 || ttype[t] == 116) {
+          if (ttype[t] == 100 || ttype[t] == 101 || ttype[t] == 102 || ttype[t] == 103 ||  (ttype[t] == 104 && txtype[t] == 1) || (ttype[t] == 114 && txtype[t] == 1) || ttype[t] == 116) {
             xx[6] = 2 + xx[9]; drawimage(grap[xx[6]][1], xx[0] / 100, xx[1] / 100);
           }
 
-          if (ttype[t] == 112 || ttype[t] == 104 && txtype[t] == 0 || ttype[t] == 115 && txtype[t] == 1) {
+          if (ttype[t] == 112 || (ttype[t] == 104 && txtype[t] == 0) || (ttype[t] == 115 && txtype[t] == 1)) {
             xx[6] = 1 + xx[9]; drawimage(grap[xx[6]][1], xx[0] / 100, xx[1] / 100);
           }
 
-          if (ttype[t] == 111 || ttype[t] == 113 || ttype[t] == 115 && txtype[t] == 0 || ttype[t] == 124) {
+          if (ttype[t] == 111 || ttype[t] == 113 || (ttype[t] == 115 && txtype[t] == 0) || ttype[t] == 124) {
             xx[6] = 3 + xx[9]; drawimage(grap[xx[6]][1], xx[0] / 100, xx[1] / 100);
           }
 
@@ -747,32 +720,32 @@ void rpaint() {
 
         if (stype[t] == 0) {
           setcolor(40, 200, 40);
-          fillrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
-          drawrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
+          fillrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
+          drawrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
         }
         //土管
         if (stype[t] == 1) {
           setcolor(0, 230, 0);
-          fillrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
+          fillrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
           setc0();
-          drawrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
+          drawrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
         }
         //土管(下)
         if (stype[t] == 2) {
           setcolor(0, 230, 0);
-          fillrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb + 1, sc[t] / 100, sd[t] / 100);
+          fillrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb + 1, sc[t] / 100, sd[t] / 100);
           setc0();
-          drawline((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb, (sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb + sd[t] / 100);
-          drawline((sa[t] - fx) / 100 + fma + sc[t] / 100, (sb[t] - fy) / 100 + fmb, (sa[t] - fx) / 100 + fma + sc[t] / 100, (sb[t] - fy) / 100 + fmb + sd[t] / 100);
+          drawline((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb, (sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb + sd[t] / 100);
+          drawline((sa[t] - fx) / 100 + fma1 + sc[t] / 100, (sb[t] - fy) / 100 + fmb, (sa[t] - fx) / 100 + fma1 + sc[t] / 100, (sb[t] - fy) / 100 + fmb + sd[t] / 100);
         }
 
         //土管(横)
         if (stype[t] == 5) {
           setcolor(0, 230, 0);
-          fillrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb + 1, sc[t] / 100, sd[t] / 100);
+          fillrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb + 1, sc[t] / 100, sd[t] / 100);
           setc0();
-          drawline((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb, (sa[t] - fx) / 100 + fma + sc[t] / 100, (sb[t] - fy) / 100 + fmb);
-          drawline((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb + sd[t] / 100, (sa[t] - fx) / 100 + fma + sc[t] / 100, (sb[t] - fy) / 100 + fmb + sd[t] / 100);
+          drawline((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb, (sa[t] - fx) / 100 + fma1 + sc[t] / 100, (sb[t] - fy) / 100 + fmb);
+          drawline((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb + sd[t] / 100, (sa[t] - fx) / 100 + fma1 + sc[t] / 100, (sb[t] - fy) / 100 + fmb + sd[t] / 100);
         }
 
 
@@ -780,25 +753,25 @@ void rpaint() {
         if (stype[t] == 51) {
           if (sxtype[t] == 0) {
             for (t3 = 0; t3 <= sc[t] / 3000; t3++) {
-              drawimage(grap[1][1], (sa[t] - fx) / 100 + fma + 29 * t3, (sb[t] - fy) / 100 + fmb);
+              drawimage(grap[1][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb);
             }
           }
           if (sxtype[t] == 1 || sxtype[t] == 2) {
             for (t3 = 0; t3 <= sc[t] / 3000; t3++) {
-              drawimage(grap[31][1], (sa[t] - fx) / 100 + fma + 29 * t3, (sb[t] - fy) / 100 + fmb);
+              drawimage(grap[31][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb);
             }
           }
           if (sxtype[t] == 3 || sxtype[t] == 4) {
             for (t3 = 0; t3 <= sc[t] / 3000; t3++) {
               for (t2 = 0; t2 <= sd[t] / 3000; t2++) {
-                drawimage(grap[65][1], (sa[t] - fx) / 100 + fma + 29 * t3, (sb[t] - fy) / 100 + 29 * t2 + fmb);
+                drawimage(grap[65][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + 29 * t2 + fmb);
               }
             }
           }
 
           if (sxtype[t] == 10) {
             for (t3 = 0; t3 <= sc[t] / 3000; t3++) {
-              drawimage(grap[65][1], (sa[t] - fx) / 100 + fma + 29 * t3, (sb[t] - fy) / 100 + fmb);
+              drawimage(grap[65][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb);
             }
           }
 
@@ -811,18 +784,18 @@ void rpaint() {
 
           for (t3 = 0; t3 <= sc[t] / 3000; t3++) {
             if (sxtype[t] == 0) {
-              drawimage(grap[5 + xx[29]][1], (sa[t] - fx) / 100 + fma + 29 * t3, (sb[t] - fy) / 100 + fmb);
-              if (stagecolor != 4) {drawimage(grap[6 + xx[29]][1], (sa[t] - fx) / 100 + fma + 29 * t3, (sb[t] - fy) / 100 + fmb + 29); } else {drawimage(grap[5 + xx[29]][1], (sa[t] - fx) / 100 + fma + 29 * t3, (sb[t] - fy) / 100 + fmb + 29); }
+              drawimage(grap[5 + xx[29]][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb);
+              if (stagecolor != 4) {drawimage(grap[6 + xx[29]][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb + 29); } else {drawimage(grap[5 + xx[29]][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb + 29); }
             }
             if (sxtype[t] == 1) {
               for (t2 = 0; t2 <= sd[t] / 3000; t2++) {
-                drawimage(grap[1 + xx[29]][1], (sa[t] - fx) / 100 + fma + 29 * t3, (sb[t] - fy) / 100 + fmb + 29 * t2);
+                drawimage(grap[1 + xx[29]][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb + 29 * t2);
               }
             }
 
             if (sxtype[t] == 2) {
               for (t2 = 0; t2 <= sd[t] / 3000; t2++) {
-                drawimage(grap[5 + xx[29]][1], (sa[t] - fx) / 100 + fma + 29 * t3, (sb[t] - fy) / 100 + fmb + 29 * t2);
+                drawimage(grap[5 + xx[29]][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb + 29 * t2);
               }
             }
 
@@ -835,7 +808,7 @@ void rpaint() {
           if (stype[t] >= 100 && stype[t] <= 299) {
             if (stagecolor <= 1 || stagecolor == 3) setc0();
             if (stagecolor == 2 || stagecolor == 4) setc1();
-            drawrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
+            drawrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
           }
         }
 
@@ -866,30 +839,30 @@ void rpaint() {
         //入る土管(右)
         if (stype[t] == 40) {
           setcolor(0, 230, 0);
-          fillrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb + 1, sc[t] / 100, sd[t] / 100);
+          fillrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb + 1, sc[t] / 100, sd[t] / 100);
           setc0();
-          drawrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb + 1, sc[t] / 100, sd[t] / 100);
+          drawrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb + 1, sc[t] / 100, sd[t] / 100);
         }
 
         //とぶ土管
         if (stype[t] == 50) {
           setcolor(0, 230, 0);
-          fillrect((sa[t] - fx) / 100 + fma + 5, (sb[t] - fy) / 100 + fmb + 30, 50, sd[t] / 100 - 30);
+          fillrect((sa[t] - fx) / 100 + fma1 + 5, (sb[t] - fy) / 100 + fmb + 30, 50, sd[t] / 100 - 30);
           setc0();
-          drawline((sa[t] - fx) / 100 + 5 + fma, (sb[t] - fy) / 100 + fmb + 30, (sa[t] - fx) / 100 + fma + 5, (sb[t] - fy) / 100 + fmb + sd[t] / 100);
-          drawline((sa[t] - fx) / 100 + 5 + fma + 50, (sb[t] - fy) / 100 + fmb + 30, (sa[t] - fx) / 100 + fma + 50 + 5, (sb[t] - fy) / 100 + fmb + sd[t] / 100);
+          drawline((sa[t] - fx) / 100 + 5 + fma1, (sb[t] - fy) / 100 + fmb + 30, (sa[t] - fx) / 100 + fma1 + 5, (sb[t] - fy) / 100 + fmb + sd[t] / 100);
+          drawline((sa[t] - fx) / 100 + 5 + fma1 + 50, (sb[t] - fy) / 100 + fmb + 30, (sa[t] - fx) / 100 + fma1 + 50 + 5, (sb[t] - fy) / 100 + fmb + sd[t] / 100);
 
           setcolor(0, 230, 0);
-          fillrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb + 1, 60, 30);
+          fillrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb + 1, 60, 30);
           setc0();
-          drawrect((sa[t] - fx) / 100 + fma, (sb[t] - fy) / 100 + fmb + 1, 60, 30);
+          drawrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb + 1, 60, 30);
         }
 
         //地面(ブロック)
         if (stype[t] == 200) {
           for (t3 = 0; t3 <= sc[t] / 3000; t3++) {
             for (t2 = 0; t2 <= sd[t] / 3000; t2++) {
-              drawimage(grap[65][1], (sa[t] - fx) / 100 + fma + 29 * t3, (sb[t] - fy) / 100 + 29 * t2 + fmb);
+              drawimage(grap[65][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + 29 * t2 + fmb);
             }
           }
         }
@@ -1100,10 +1073,10 @@ void rpaint() {
 
     //DrawFormatString(10,10,GetColor(255,255,255),"X … %d",anobib[0]);
 
-  } //if (main==1){
+  } //if (mainproc==1){
 
 
-  if (main == 2) {
+  if (mainproc == 2) {
 
     setcolor(255, 255, 255);
     str("制作・プレイに関わった方々", 240 - 13 * 20 / 2, xx[12] / 100);
@@ -1130,7 +1103,7 @@ void rpaint() {
 
 
 
-  if (main == 10) {
+  if (mainproc == 10) {
 
     setc0();
     fillrect(0, 0, fxmax, fymax);
@@ -1142,11 +1115,11 @@ void rpaint() {
     DrawFormatString(230, 200, GetColor(255, 255, 255), " × %d", nokori);
 
 
-  } //if (main==10){
+  } //if (mainproc==10){
 
 
 //タイトル
-  if (main == 100) {
+  if (mainproc == 100) {
 
     setcolor(160, 180, 250);
     fillrect(0, 0, fxmax, fymax);
@@ -1167,7 +1140,7 @@ void rpaint() {
     setcolor(0, 0, 0);
     str("Enterキーを押せ!!", 240 - 8 * 20 / 2, 250);
 
-  } //if (main==100){
+  } //if (mainproc==100){
 
 
 
@@ -1189,14 +1162,14 @@ void Mainprogram() {
   stime = long(GetNowCount());
 
 
-  if (ending == 1) main = 2;
+  if (ending == 1) mainproc = 2;
 
 
   //キー
   key = GetJoypadInputState(DX_INPUT_KEY_PAD1);
 
 
-  if (main == 1 && tmsgtype == 0) {
+  if (mainproc == 1 && tmsgtype == 0) {
 
 
     if (zxon == 0) {
@@ -1281,7 +1254,7 @@ void Mainprogram() {
     }
 
     //if (CheckHitKey(KEY_INPUT_F1)==1){end();}
-    if (CheckHitKey(KEY_INPUT_F1) == 1) {main = 100; }
+    if (CheckHitKey(KEY_INPUT_F1) == 1) {mainproc = 100; }
     //if (CheckHitKey(KEY_INPUT_Q)==1){mkeytm=0;}
     if (CheckHitKey(KEY_INPUT_O) == 1) {if (mhp >= 1) mhp = 0; if (stc >= 5) {stc = 0; stagepoint = 0; }}
 
@@ -1399,7 +1372,7 @@ void Mainprogram() {
       if (mtm <= 11) {mc = 0; md = 0; }
       if (mtm == 12) {md = -1200; }
       if (mtm >= 12) {mc = 0; }
-      if (mtm >= 100 || fast == 1) {zxon = 0; main = 10; mtm = 0; mkeytm = 0; nokori--; if (fast == 1) mtype = 0; } //mtm>=100
+      if (mtm >= 100 || fast == 1) {zxon = 0; mainproc = 10; mtm = 0; mkeytm = 0; nokori--; if (fast == 1) mtype = 0; } //mtm>=100
     }    //mtype==200
 
 
@@ -1487,7 +1460,7 @@ void Mainprogram() {
         if (mtm > 43 && mtm <= 108) {mc = 300; }
         if (mtm == 110) {mb = -80000000; mc = 0; }
         if (mtm == 250) {
-          stb++; stc = 0; zxon = 0; tyuukan = 0; main = 10; maintm = 0;
+          stb++; stc = 0; zxon = 0; tyuukan = 0; mainproc = 10; maintm = 0;
         }
       } //mtype==300
 
@@ -1496,7 +1469,7 @@ void Mainprogram() {
 
         if (mtm <= 1) {mc = 0; md = 0; }
 
-        if (mtm >= 2 && (mtype == 301 && mtm <= 102 || mtype == 302 && mtm <= 60)) {
+        if (mtm >= 2 && ((mtype == 301 && mtm <= 102) || (mtype == 302 && mtm <= 60))) {
           xx[5] = 500;
           ma -= xx[5]; fx += xx[5]; fzx += xx[5];
         }
@@ -2002,7 +1975,7 @@ void Mainprogram() {
             if (sxtype[t] == 2 && sb[28] >= 48000 && t != 28 && sgtype[t] == 0 && mhp >= 1) {
               sgtype[t] = 1; sr[t] = 0;
             }
-            if ((sxtype[t] == 3 && mb >= 30000 || sxtype[t] == 4 && mb >= 25000) && sgtype[t] == 0 && mhp >= 1 && ma + mnobia > xx[8] + xx[0] + 3000 - 300 && ma < xx[8] + sc[t] - xx[0]) {
+            if (((sxtype[t] == 3 && mb >= 30000) || (sxtype[t] == 4 && mb >= 25000)) && sgtype[t] == 0 && mhp >= 1 && ma + mnobia > xx[8] + xx[0] + 3000 - 300 && ma < xx[8] + sc[t] - xx[0]) {
               sgtype[t] = 1; sr[t] = 0;
               if (sxtype[t] == 4) sr[t] = 100;
             }
@@ -2092,7 +2065,7 @@ void Mainprogram() {
         else {
           if (ma + mnobia > xx[8] + xx[0] && ma<xx[8] + sc[t] - xx[0] && mb + mnobib>xx[9] && mb < xx[9] + sd[t] + xx[0]) {
             if (stype[t] == 100) {
-              if (sxtype[t] == 0 || sxtype[t] == 1 && ttype[1] != 3) {
+              if (sxtype[t] == 0 || (sxtype[t] == 1 && ttype[1] != 3)) {
                 ayobi(sa[t] + 1000, 32000, 0, 0, 0, 3, 0); sa[t] = -800000000; ot(oto[10]);
               }
             }
@@ -2301,7 +2274,7 @@ void Mainprogram() {
             //落下
             if ((sracttype[t] == 1) && sron[t] == 0) sron[t] = 1;
 
-            if (sracttype[t] == 1 && sron[t] == 1 || sracttype[t] == 3 || sracttype[t] == 5) {
+            if ((sracttype[t] == 1 && sron[t] == 1) || sracttype[t] == 3 || sracttype[t] == 5) {
               mb += sre[t];
               //if (srmuki[t]==0)
               //if (srf[t]<0)
@@ -3269,11 +3242,11 @@ void Mainprogram() {
 
 
 
-  }    //if (main==1){
+  }    //if (mainproc==1){
 
 
   //スタッフロール
-  if (main == 2) {
+  if (mainproc == 2) {
     maintm++;
 
     xx[7] = 46;
@@ -3315,24 +3288,25 @@ void Mainprogram() {
     }                                          //t
 
     if (xx[30] == -200) {bgmchange(oto[106]); }
-    if (xx[30] <= -400) {main = 100; nokori = 2; maintm = 0; ending = 0; }
+    if (xx[30] <= -400) {mainproc = 100; nokori = 2; maintm = 0; ending = 0; }
 
-  }    //main==2
+  }    //mainproc==2
 
 
-  if (main == 10) {
+  if (mainproc == 10) {
     maintm++;
 
     if (fast == 1) maintm += 2;
-    if (maintm >= 30) {maintm = 0; main = 1; zxon = 0; }
-  }    //if (main==10){
+    if (maintm >= 30) {maintm = 0; mainproc = 1; zxon = 0; }
+  }    //if (mainproc==10){
 
 
   //タイトル
-  if (main == 100) {
+  if (mainproc == 100) {
     maintm++; xx[0] = 0;
     if (maintm <= 10) {maintm = 11; sta = 1; stb = 1; stc = 0; over = 0; }
 
+    /*
     if (CheckHitKey(KEY_INPUT_1) == 1) {sta = 1; stb = 1; stc = 0; }
     if (CheckHitKey(KEY_INPUT_2) == 1) {sta = 1; stb = 2; stc = 0; }
     if (CheckHitKey(KEY_INPUT_3) == 1) {sta = 1; stb = 3; stc = 0; }
@@ -3341,6 +3315,7 @@ void Mainprogram() {
     if (CheckHitKey(KEY_INPUT_6) == 1) {sta = 2; stb = 2; stc = 0; }
     if (CheckHitKey(KEY_INPUT_7) == 1) {sta = 2; stb = 3; stc = 0; }
     if (CheckHitKey(KEY_INPUT_8) == 1) {sta = 2; stb = 4; stc = 0; }
+    */
     //if (CheckHitKey(KEY_INPUT_9)==1){sta=3;stb=1;stc=0;}
     if (CheckHitKey(KEY_INPUT_0) == 1) {xx[0] = 1; over = 1; }
 
@@ -3351,7 +3326,7 @@ void Mainprogram() {
     if (CheckHitKey(KEY_INPUT_Z) == 1) {xx[0] = 1; }
 
     if (xx[0] == 1) {
-      main = 10; zxon = 0; maintm = 0;
+      mainproc = 10; zxon = 0; maintm = 0;
       nokori = 2;
 
       fast = 0; trap = 0; tyuukan = 0;
@@ -3436,7 +3411,7 @@ void tekizimen() {
 
         //左右
         xx[27] = 0;
-        if ((atype[t] >= 100 || (ttype[tt] != 7 || ttype[tt] == 7 && atype[t] == 2)) && ttype[tt] != 117) {
+        if ((atype[t] >= 100 || (ttype[tt] != 7 || (ttype[tt] == 7 && atype[t] == 2))) && ttype[tt] != 117) {
           if (aa[t] + anobia[t] - fx > xx[8] && aa[t] - fx<xx[8] + xx[2] && ab[t] + anobib[t] - fy>xx[9] + xx[1] / 2 - xx[0] && ab[t] - fy < xx[9] + xx[2]) {aa[t] = xx[8] - anobia[t] + fx; ac[t] = 0; amuki[t] = 0; xx[27] = 1; }
           if (aa[t] + anobia[t] - fx > xx[8] + xx[1] - xx[0] * 2 && aa[t] - fx<xx[8] + xx[1] && ab[t] + anobib[t] - fy>xx[9] + xx[1] / 2 - xx[0] && ab[t] - fy < xx[9] + xx[2]) {aa[t] = xx[8] + xx[1] + fx; ac[t] = 0; amuki[t] = 1; xx[27] = 1; }
           //こうらブレイク
@@ -3531,9 +3506,9 @@ void drawarc(int a, int b, int c, int d) {DrawOval(a, b, c, d, color, FALSE); }
 void fillarc(int a, int b, int c, int d) {DrawOval(a, b, c, d, color, TRUE); }
 
 //画像の読み込み
-int loadimage(string x) {
+int loadimage(const char* x) {
   //mgrap[a]=LoadGraph(b);
-  return LoadGraph(x.c_str());
+  return LoadGraph(x);
 }
 int loadimage(int a, int x, int y, int r, int z) {
   return DerivationGraph(x, y, r, z, a);
@@ -3569,9 +3544,9 @@ void setno() {}     //g.setFlipMode(Graphics.FLIP_NONE);}
  */
 
 //文字
-void str(string x, int a, int b) {
+void str(const char *x, int a, int b) {
   //char d[]="あ";
-  DrawString(a, b, x.c_str(), color);
+  DrawString(a, b, x, color);
   //DrawString(10,10,xs[3].c_str(),color);
 
   xx[2] = 4;
@@ -5587,7 +5562,7 @@ void ttmsg() {
 
 } //ttmsg
 
-void txmsg(string x, int a) {
+void txmsg(const char *x, int a) {
   int xx = 6;
 
   str(x, 60 + xx, 40 + xx + a * 24);
