@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 
 static Display *x_display = NULL;
@@ -324,6 +325,7 @@ static const char fShaderStr[] =
 "uniform vec4 u_color;\n"
 "void main() {\n"
 "  gl_FragColor = texture2D(s_texture, v_texCoord) * u_color;\n"
+//"  gl_FragColor = vec4(1, 1, 1, 1);\n"
 "}\n";
 
 static GLuint programObject = 0;
@@ -440,7 +442,7 @@ int DxLib_Init(void) {
   whiteTexture = Create1x1Texture(255, 255, 255, 255);
 
   // Setup the vertex data
-  GLfloat vVertices[] = { 
+  GLfloat vVertices[(20 + 16) * 5] = { 
     // normal
     0, 0, 0, 0, 0,
     0, 1, 0, 0, 1,
@@ -453,13 +455,36 @@ int DxLib_Init(void) {
     1, 0, 0, 0, 0,
     1, 1, 0, 0, 1,
 
-    // loop
+    // flip horizontal
+    0, 0, 0, 0, 1,
+    0, 1, 0, 0, 0,
+    1, 0, 0, 1, 1,
+    1, 1, 0, 1, 0,
+
+    // line loop
     0, 0, 0, 1, 0,
     0, 1, 0, 1, 1,
     1, 1, 0, 0, 1,
     1, 0, 0, 0, 0,
+
+    // line
+    0, 0, 0, 0, 0,
+    1, 1, 0, 1, 1,
+
+    // not used
+    0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0,
   };
   GLushort indices[] = { 0, 1, 2, 1, 2, 3 };
+
+  // build circle vertices
+  for (int i = 0; i < 16; i++) {
+    float x = cosf(M_PI * 2 * i / 15);
+    float y = sinf(M_PI * 2 * i / 15);
+    GLfloat *v = vVertices + (20 + i)* 5;
+    v[0] = x;
+    v[1] = y;
+  }
 
   glGenBuffers(1, &vertexObject);
   glBindBuffer(GL_ARRAY_BUFFER, vertexObject );
@@ -623,10 +648,6 @@ uint32_t GetColor(int Red, int Green, int Blue) {
 int DrawFormatString(int x, int y, int Color, const char *FormatString, ...) {
   return 0;
 }
-// グラフィックの回転描画
-int DrawRotaGraph(int x, int y, double ExRate, double Angle, int GrHandle, int TransFlag, int TurnFlag) {
-  return 0;
-}
 // フォントタイプの変更
 int ChangeFontType(int FontType) {
   return 0;
@@ -645,7 +666,7 @@ int GetNowCount(int UseRDTSCFlag) {
   struct timeval t1;
   struct timezone tz;
   gettimeofday(&t1, &tz);
-  return ((t1.tv_sec) * 1000 + (t1.tv_usec) / 1000);
+  return ((t1.tv_sec & 0x0fffffff) * 1000 + (t1.tv_usec) / 1000);
 }
 // ジョイバッドの入力状態取得
 int GetJoypadInputState(int InputType) {
@@ -675,30 +696,6 @@ int GetRand(int RandMax) {
   return 0;
 }
 
-// 点を描画する
-int DrawPixel(int x, int y, int Color) {
-  return 0;
-}
-// 線を描画
-int DrawLine(int x1, int y1, int x2, int y2, int Color, int Thickness) {
-  return 0;
-}
-// 四角形の描画
-int DrawBox(int x1, int y1, int x2, int y2, int Color, int FillFlag) {
-  return 0;
-}
-// 楕円を描く
-int DrawOval(int x, int y, int rx, int ry, int Color, int FillFlag) {
-  return 0;
-}
-// グラフィックの描画
-int DrawGraph(int x, int y, int GrHandle, int TransFlag) {
-  return 0;
-}
-// 画像の左右反転描画
-int DrawTurnGraph(int x, int y, int GrHandle, int TransFlag) {
-  return 0;
-}
 // 文字列の描画
 int DrawString(int x, int y, const char *String, int Color, int EdgeColor) {
   return 0;
@@ -744,43 +741,58 @@ static void set_transform(float x, float y, float w, float h) {
   float sy = -2.0f / screenSizeY;
   glUniform4f (u_posTrans, x * sx - 1, y * sy + 1, w * sx, h * sy);
 }
-
-//線
-void drawline(int a, int b, int c, int d) {DrawLine(a, b, c, d, color); }
-//四角形(塗り無し)
-void drawrect(int x, int y, int w, int h) {
-  set_texture(whiteTexture);
-  set_transform(x, y, w, h);
-
+static void set_color(int color) {
   float r = (color & 0xff) / 255.0f;
   float g = ((color >> 8) & 0xff) / 255.0f;
   float b = ((color >> 16) & 0xff) / 255.0f;
   glUniform4f (u_color, r, g, b, 1);
-  glDrawArrays ( GL_LINE_LOOP, 8, 4);
+}
+
+//線
+void drawline(int x, int y, int w, int h) {
+  set_texture(whiteTexture);
+  set_transform(x, y, w - x, h - y);
+  set_color(color);
+  glDrawArrays(GL_LINES, 16, 2);
+}
+
+//四角形(塗り無し)
+void drawrect(int x, int y, int w, int h) {
+  set_texture(whiteTexture);
+  set_transform(x, y, w, h);
+  set_color(color);
+
+  glDrawArrays(GL_LINE_LOOP, 12, 4);
 }
 
 //四角形(塗り有り)
 void fillrect(int x, int y, int w, int h) {
   set_texture(whiteTexture);
   set_transform(x, y, w, h);
-
-  float r = (color & 0xff) / 255.0f;
-  float g = ((color >> 8) & 0xff) / 255.0f;
-  float b = ((color >> 16) & 0xff) / 255.0f;
-  glUniform4f (u_color, r, g, b, 1);
+  set_color(color);
   glDrawArrays ( GL_TRIANGLE_STRIP, 0, 4);
 }
 
 //円(塗り無し)
-void drawarc(int a, int b, int c, int d) {DrawOval(a, b, c, d, color, FALSE); }
+void drawarc(int x, int y, int w, int h) {
+  set_texture(whiteTexture);
+  set_transform(x, y, w, h);
+  set_color(color);
+  glDrawArrays (GL_LINE_LOOP, 20, 15);
+}
 //円(塗り有り)
-void fillarc(int a, int b, int c, int d) {DrawOval(a, b, c, d, color, TRUE); }
+void fillarc(int x, int y, int w, int h) {
+  set_texture(whiteTexture);
+  set_transform(x, y, w, h);
+  set_color(color);
+  glDrawArrays (GL_TRIANGLE_FAN, 20, 15);
+}
 
 //画像表示
-void drawimage(int mx, int a, int b) {
+void drawimage(int mx, int x, int y) {
   GraphData *g = &graphArray[mx];
   set_texture(g->texture);
-  set_transform(a, b, g->w, g->h);
+  set_transform(x, y, g->w, g->h);
   glUniform4f (u_uvTrans, g->x, g->y, g->sx, g->sy);
   glUniform4f (u_color, 1, 1, 1, 1);
 
@@ -788,6 +800,17 @@ void drawimage(int mx, int a, int b) {
     glDrawArrays ( GL_TRIANGLE_STRIP, 0, 4);
   if (mirror == 1)
     glDrawArrays ( GL_TRIANGLE_STRIP, 4, 4);
+}
+
+// グラフィックの回転描画
+void drawimageflip(int mx, int x, int y) {
+  GraphData *g = &graphArray[mx];
+  set_texture(g->texture);
+  set_transform(x, y, g->w, g->h);
+  glUniform4f (u_uvTrans, g->x, g->y, g->sx, g->sy);
+  glUniform4f (u_color, 1, 1, 1, 1);
+
+  glDrawArrays ( GL_TRIANGLE_STRIP, 8, 4);
 }
 
 //反転

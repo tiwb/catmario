@@ -81,7 +81,7 @@ extern uint32_t GetColor(int Red, int Green, int Blue);
 // 書式指定文字列を描画する
 extern int DrawFormatString(int x, int y, int Color, const char *FormatString, ...);
 // グラフィックの回転描画
-extern int DrawRotaGraph(int x, int y, double ExRate, double Angle, int GrHandle, int TransFlag, int TurnFlag = FALSE);
+extern void DrawRotaGraph(int x, int y, double ExRate, double Angle, int GrHandle, int TransFlag, int TurnFlag = FALSE);
 // フォントタイプの変更
 extern int ChangeFontType(int FontType);
 

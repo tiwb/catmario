@@ -69,6 +69,7 @@ void drawarc(int a, int b, int c, int d);
 void fillarc(int a, int b, int c, int d);
 int grap[161][8], mgrap[51];
 void drawimage(int mx, int a, int b);
+void drawimageflip(int mx, int a, int b);
 void setre();
 void setre2();
 void setno();
@@ -508,8 +509,8 @@ void rpaint() {
       if (xx[0] + xx[2] * 100 >= -10 - xx[14] && xx[1] <= fxmax + xx[14] && xx[1] + xx[3] * 100 >= -10 && xx[3] <= fymax) {
         //if (atype[t]>=100)amuki[t]=0;
         if (amuki[t] == 1) {mirror = 1; }
-        if (atype[t] == 3 && axtype[t] == 1) {DrawRotaGraph(xx[0] / 100 + 13, xx[1] / 100 + 15, 1.0f, pai / 1, grap[atype[t]][3], TRUE); xx[16] = 1; }
-        if (atype[t] == 9 && ad[t] >= 1) {DrawRotaGraph(xx[0] / 100 + 13, xx[1] / 100 + 15, 1.0f, pai / 1, grap[atype[t]][3], TRUE); xx[16] = 1; }
+        if (atype[t] == 3 && axtype[t] == 1) {drawimageflip(grap[atype[t]][3], xx[0] / 100, xx[1] / 100); xx[16] = 1; }
+        if (atype[t] == 9 && ad[t] >= 1) {drawimageflip(grap[atype[t]][3], xx[0] / 100, xx[1] / 100); xx[16] = 1; }
         if (atype[t] >= 100 && amuki[t] == 1) mirror = 0;
 
         //tekikaki(atype[t]);
@@ -1131,7 +1132,7 @@ void rpaint() {
 
     setcolor(0, 0, 0);
     str("Enterキーを押せ!!", 240 - 8 * 20 / 2, 250);
-
+    
   } //if (mainproc==100)
 
 
