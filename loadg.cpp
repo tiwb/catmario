@@ -1,4 +1,5 @@
 ﻿#include "DxLib.h"
+#include <stdlib.h>
 
 void end();
 
@@ -8,6 +9,10 @@ extern int oto[151];
 
 extern int anx[160], any[160];
 extern int ne[40], nf[40];
+
+extern "C" {
+	void sound_init();
+}
 
 void loadg(void) {
 
@@ -175,57 +180,37 @@ void loadg(void) {
 
 
 
-
-
-
-  //wav読み込み
-  //try{
-  //oto[2] = LoadSoundMem( "SE/1.WAV" ) ;
-  SetCreateSoundDataType(DX_SOUNDDATATYPE_MEMPRESS);
-  oto[100] = LoadSoundMem("BGM/field.mp3");
-  ChangeVolumeSoundMem(50, oto[100]);
-  oto[103] = LoadSoundMem("BGM/dungeon.mp3");
-  ChangeVolumeSoundMem(50, oto[103]);
-  oto[104] = LoadSoundMem("BGM/star4.mp3");
-  oto[105] = LoadSoundMem("BGM/castle.mp3");
-  ChangeVolumeSoundMem(50, oto[105]);
-  oto[106] = LoadSoundMem("BGM/puyo.mp3");
-  oto[107] = LoadSoundMem("BGM/last.mp3");
-  ChangeVolumeSoundMem(50, oto[107]);
-
+  /*
   SetCreateSoundDataType(DX_SOUNDDATATYPE_MEMNOPRESS);
-  oto[1] = LoadSoundMem("SE/jump.mp3");
-  //oto[2] = LoadSoundMem("SE/brockcoin.mp3");
-  oto[3] = LoadSoundMem("SE/brockbreak.mp3");
-  oto[4] = LoadSoundMem("SE/coin.mp3");
-  oto[5] = LoadSoundMem("SE/humi.mp3");
-  oto[6] = LoadSoundMem("SE/koura.mp3");
-  oto[7] = LoadSoundMem("SE/dokan.mp3");
-  oto[8] = LoadSoundMem("SE/brockkinoko.mp3");
-  oto[9] = LoadSoundMem("SE/powerup.mp3");
-  oto[10] = LoadSoundMem("SE/kirra.mp3");
-  oto[11] = LoadSoundMem("SE/goal.mp3");
-  oto[12] = LoadSoundMem("SE/death.mp3");
-  oto[13] = LoadSoundMem("SE/Pswitch.mp3");
-  oto[14] = LoadSoundMem("SE/jumpBlock.mp3");
-  oto[15] = LoadSoundMem("SE/hintBlock.mp3");
-  oto[16] = LoadSoundMem("SE/4-clear.mp3");
-  oto[17] = LoadSoundMem("SE/allclear.mp3");
-  oto[18] = LoadSoundMem("SE/tekifire.mp3");
+  oto[1] = LoadSoundMem("se/jump.mp3");
+  //oto[2] = LoadSoundMem("se/brockcoin.mp3");
+  oto[3] = LoadSoundMem("se/brockbreak.mp3");
+  oto[4] = LoadSoundMem("se/coin.mp3");
+  oto[5] = LoadSoundMem("se/humi.mp3");
+  oto[6] = LoadSoundMem("se/koura.mp3");
+  oto[7] = LoadSoundMem("se/dokan.mp3");
+  oto[8] = LoadSoundMem("se/brockkinoko.mp3");
+  oto[9] = LoadSoundMem("se/powerup.mp3");
+  oto[10] = LoadSoundMem("se/kirra.mp3");
+  oto[11] = LoadSoundMem("se/goal.mp3");
+  oto[12] = LoadSoundMem("se/death.mp3");
+  oto[13] = LoadSoundMem("se/Pswitch.mp3");
+  oto[14] = LoadSoundMem("se/jumpBlock.mp3");
+  oto[15] = LoadSoundMem("se/hintBlock.mp3");
+  oto[16] = LoadSoundMem("se/4-clear.mp3");
+  oto[17] = LoadSoundMem("se/allclear.mp3");
+  oto[18] = LoadSoundMem("se/tekifire.mp3");
 
   //}catch( int num){end();}
 
 
   ChangeVolumeSoundMem(255 * 40 / 100, oto[103]);
-
+*/
 
   //ループ設定-20000-20秒
   //SetLoopPosSoundMem( 1,oto[104]) ;
   //SetLoopSamplePosSoundMem(44100,oto[104]);
   //SetLoopSamplePosSoundMem(22050,oto[104]);
 
-
-
-
-
+  sound_init();
 }
