@@ -3,10 +3,9 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="loadg.cpp" />
-    <ClCompile Include="dxlib.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="dxlib.h" />
+    <ClInclude Include="lib.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Makefile" />

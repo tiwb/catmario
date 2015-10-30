@@ -11,12 +11,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dxlib.cpp" />
     <ClCompile Include="loadg.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="dxlib.h" />
+    <ClInclude Include="lib.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="index.html" />
@@ -53,12 +52,14 @@
     <IntDir>$(ProjectDir)</IntDir>
     <NMakeBuildCommandLine>build.bat</NMakeBuildCommandLine>
     <NMakeCleanCommandLine>build.bat clean</NMakeCleanCommandLine>
+    <IncludePath>C:\tools\emscripten\emscripten\1.34.1\system\include;C:\tools\emscripten\emscripten\1.34.1\system\include\libc;C:\tools\emscripten\emscripten\1.34.1\system\include\emscripten</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>$(ProjectDir)</OutDir>
     <IntDir>$(ProjectDir)</IntDir>
     <NMakeBuildCommandLine>build.bat release</NMakeBuildCommandLine>
     <NMakeCleanCommandLine>build.bat clean</NMakeCleanCommandLine>
+    <IncludePath>C:\tools\emscripten\emscripten\1.34.1\system\include;C:\tools\emscripten\emscripten\1.34.1\system\include\libc;C:\tools\emscripten\emscripten\1.34.1\system\include\emscripten</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup>
   </ItemDefinitionGroup>

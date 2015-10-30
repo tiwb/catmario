@@ -1,5 +1,4 @@
-﻿#include "DxLib.h"
-#include <stdio.h>
+﻿#include "lib.h"
 #include <math.h>
 
 void loadg();
@@ -45,43 +44,8 @@ void Mainprogram();
 void rpaint();
 int maint;
 
-
-//サブクラス
-//(ウエイト系
-static void wait(int interval);
-static void wait2(long stime, long etime, int FLAME_TIME);
-static int rand(int Rand);
-void end();
-
 //描画
-extern int color;
-extern int mirror;
-void setfont(int a);
-void setcolor(int red, int green, int blue);
-void clearscreen();
-void setc0();
-void setc1();
-void drawpixel(int a, int b);
-void drawline(int a, int b, int c, int d);
-void drawrect(int a, int b, int c, int d);
-void fillrect(int a, int b, int c, int d);
-void drawarc(int a, int b, int c, int d);
-void fillarc(int a, int b, int c, int d);
 int grap[161][8], mgrap[51];
-void drawimage(int mx, int a, int b);
-void drawimageflip(int mx, int a, int b);
-void setre();
-void setre2();
-void setno();
-
-extern "C" {
-	void bgmchange(int x);
-	void bgmplay();
-	void bgmstop();
-	void soundplay(int x); 
-	void soundstop(int x); 
-	int soundcheck(int x);
-}
 
 //文字
 void str(const char* c, int a, int b);
@@ -154,7 +118,6 @@ int titem[tmax], txtype[tmax];
 //メッセージブロック
 int tmsgtm, tmsgtype, tmsgx, tmsgy, tmsgnobix, tmsgnobiy, tmsg;
 void ttmsg(); void txmsg(const char* x, int a);
-void setfont(int x, int y);
 
 //効果を持たないグラ
 void eyobi(int xa, int xb, int xc, int xd, int xe, int xf, int xnobia, int xnobib, int xgtype, int xtm);
@@ -237,18 +200,12 @@ long stime;
 
 // プログラムは WinMain から始まります
 int main() {
-  //画面サイズ設定
-  SetGraphMode(fxmax / 100, fymax / 100, 16);
-
-  // ＤＸライブラリ初期化処理(エラーが起きたら直ちに終了)
-  if (DxLib_Init() == -1) return -1;
+  graphics_init();
+  sound_init();
+  input_init();
 
   //全ロード
   loadg();
-
-  //フォント
-  SetFontSize(16);
-  SetFontThickness(4);
 
   // Main loop
   emscripten_set_main_loop(Mainprogram, 0, 1);
@@ -302,14 +259,15 @@ void rpaint() {
           drawimage(grap[ntype[t]][4], xx[0] / 100 - 5, xx[1] / 100);
 
         //51
+        setcolor(255, 255, 255);
         if (ntype[t] == 100) {
-          DrawFormatString(xx[0] / 100 + fma1, xx[1] / 100 + fmb, GetColor(255, 255, 255), "51");
+          drawstring(xx[0] / 100 + fma1, xx[1] / 100 + fmb, "51");
         }
 
         if (ntype[t] == 101)
-          DrawFormatString(xx[0] / 100 + fma1, xx[1] / 100 + fmb, GetColor(255, 255, 255), "ゲームクリアー");
+          drawstring(xx[0] / 100 + fma1, xx[1] / 100 + fmb, "ゲームクリアー");
         if (ntype[t] == 102)
-          DrawFormatString(xx[0] / 100 + fma1, xx[1] / 100 + fmb, GetColor(255, 255, 255), "プレイしてくれてありがとー");
+          drawstring(xx[0] / 100 + fma1, xx[1] / 100 + fmb, "プレイしてくれてありがとー");
 
       }
     }   //t
@@ -339,9 +297,9 @@ void rpaint() {
 
         //リフトの破片
         if (egtype[t] == 2 || egtype[t] == 3) {
-          if (egtype[t] == 3) mirror = 1;
+          if (egtype[t] == 3) setmirror(1);
           drawimage(grap[0][5], xx[0] / 100, xx[1] / 100);
-          mirror = 0;
+          setmirror(0);
         }
 
         //ポール
@@ -472,10 +430,10 @@ void rpaint() {
 
     //プレイヤー描画
     setcolor(0, 0, 255);
-    //mirror=1;
+    //setmirror(1);
 
     if (mactp >= 2000) {mactp -= 2000; if (mact == 0) {mact = 1; } else {mact = 0; }}
-    if (mmuki == 0) mirror = 1;
+    if (mmuki == 0) setmirror(1);
 
     if (mtype != 200 && mtype != 1) {
       if (mzimen == 1) {
@@ -495,7 +453,7 @@ void rpaint() {
       drawimage(grap[3][0], ma / 100, mb / 100);
     }
 
-    mirror = 0;
+    setmirror(0);
 
     //drawrect(ma/100,mb/100,30,36);
 
@@ -506,7 +464,7 @@ void rpaint() {
 
 
 
-    //for (t=0;t<bmax;t++){DrawFormatString((ba[t]-fx)/100+40,(bb[t]-fy)/100,GetColor(250,250,250),"%d",t);}
+    //for (t=0;t<bmax;t++){drawstringf((ba[t]-fx)/100+40,(bb[t]-fy)/100,GetColor(250,250,250),"%d",t);}
 
     //敵キャラ
     for (t = 0; t < amax; t++) {
@@ -515,10 +473,10 @@ void rpaint() {
       xx[2] = anobia[t] / 100; xx[3] = anobib[t] / 100; xx[14] = 3000; xx[16] = 0;
       if (xx[0] + xx[2] * 100 >= -10 - xx[14] && xx[1] <= fxmax + xx[14] && xx[1] + xx[3] * 100 >= -10 && xx[3] <= fymax) {
         //if (atype[t]>=100)amuki[t]=0;
-        if (amuki[t] == 1) {mirror = 1; }
+        if (amuki[t] == 1) {setmirror(1); }
         if (atype[t] == 3 && axtype[t] == 1) {drawimageflip(grap[atype[t]][3], xx[0] / 100, xx[1] / 100); xx[16] = 1; }
         if (atype[t] == 9 && ad[t] >= 1) {drawimageflip(grap[atype[t]][3], xx[0] / 100, xx[1] / 100); xx[16] = 1; }
-        if (atype[t] >= 100 && amuki[t] == 1) mirror = 0;
+        if (atype[t] >= 100 && amuki[t] == 1) setmirror(0);
 
         //tekikaki(atype[t]);
 
@@ -526,7 +484,7 @@ void rpaint() {
         //drawrect(xx[0]/100,xx[1]/100,30,30);
 
 
-        //DrawFormatString(xx[0]/100+40,xx[1]/100,GetColor(0,0,0),"%d",axzimen[t]);
+        //drawstringf(xx[0]/100+40,xx[1]/100,GetColor(0,0,0),"%d",axzimen[t]);
         //drawstring(grap[atype[t]][3],xx[0]/100,xx[1]/100);
 
 
@@ -628,7 +586,7 @@ void rpaint() {
           drawimage(grap[0][3], xx[0] / 100, xx[1] / 100);
 
 
-        mirror = 0;
+        setmirror(0);
 
       }
     }
@@ -1020,10 +978,10 @@ void rpaint() {
 
         //setc0();
         //str(xs[0],xx[5]-1,xx[6]-1);str(xs[0],xx[5]+1,xx[6]+1);
-        ChangeFontType(DX_FONTTYPE_EDGE);
+        setfonttype(DX_FONTTYPE_EDGE);
         setc1();
         str(xs[0], xx[5], xx[6]);
-        ChangeFontType(DX_FONTTYPE_NORMAL);
+        setfonttype(DX_FONTTYPE_NORMAL);
 
 
       }        //amsgtm
@@ -1044,7 +1002,7 @@ void rpaint() {
       } else if (tmsgtype == 3) {
         xx[0] = 1200;
         tmsgy += xx[0];
-        if (tmsgtm == 15) WaitKey();
+        if (tmsgtm == 15) input_waitkey();
         if (tmsgtm == 1) {tmsgtm = 0; tmsgtype = 0; tmsgy = 0; }
       }        //1
 
@@ -1055,8 +1013,9 @@ void rpaint() {
     //メッセージ
     if (mainmsgtype >= 1) {
       setfont(20, 4);
-      if (mainmsgtype == 1) {DrawFormatString(126, 100, GetColor(255, 255, 255), "WELCOME TO OWATA ZONE"); }
-      if (mainmsgtype == 1) {for (t2 = 0; t2 <= 2; t2++) DrawFormatString(88 + t2 * 143, 210, GetColor(255, 255, 255), "1"); }
+      setcolor(255, 255, 255);
+      if (mainmsgtype == 1) {drawstring(126, 100, "WELCOME TO OWATA ZONE"); }
+      if (mainmsgtype == 1) {for (t2 = 0; t2 <= 2; t2++) drawstring(88 + t2 * 143, 210, "1"); }
       setfont(20, 5);
     }        //mainmsgtype>=1
 
@@ -1071,7 +1030,7 @@ void rpaint() {
 
     }        //blacktm
 
-    //DrawFormatString(10,10,GetColor(255,255,255),"X … %d",anobib[0]);
+    //drawstringf(10,10,GetColor(255,255,255),"X … %d",anobib[0]);
 
   } //if (mainproc==1){
 
@@ -1108,11 +1067,13 @@ void rpaint() {
     setc0();
     fillrect(0, 0, fxmax, fymax);
 
-    SetFontSize(16);
-    SetFontThickness(4);
+    setfont(16, 4);
 
     drawimage(grap[0][0], 190, 190);
-    DrawFormatString(230, 200, GetColor(255, 255, 255), " × %d", nokori);
+    setcolor(255, 255, 255);
+    char buff[256];
+    snprintf(buff, sizeof(buff), " x %d", nokori);
+    drawstring(230, 200, buff);
 
 
   } //if (mainproc==10){
@@ -1144,9 +1105,7 @@ void rpaint() {
 
 
 
-  //DrawFormatString(230,200,GetColor(255,255,255)," × %d,%d,%d",sta,stb,stc);
-
-  ScreenFlip();
+  //drawstringf(230,200,GetColor(255,255,255)," × %d,%d,%d",sta,stb,stc);
 
 } //rpaint()
 
@@ -1159,7 +1118,7 @@ void rpaint() {
 
 //メインプログラム
 void Mainprogram() {
-  int time = GetNowCount();
+  int time = gettime();
   if (time - stime < 1000 / 30)
     return;
 
@@ -1169,7 +1128,7 @@ void Mainprogram() {
 
 
   //キー
-  key = GetJoypadInputState(DX_INPUT_KEY_PAD1);
+  key = input_getjoypad();
 
 
   if (mainproc == 1 && tmsgtype == 0) {
@@ -1204,19 +1163,19 @@ void Mainprogram() {
 
       //ランダムにさせる
       if (over == 1) {
-        //for (t=0;t<;t++){na[t]=rand(300000);nb[t]=rand(3000);}
+        //for (t=0;t<;t++){na[t]=getrand(300000);nb[t]=getrand(3000);}
         for (t = 0; t < tmax; t++) {
-          if (rand(3) <= 1) {
-            ta[t] = (rand(500) - 1) * 29 * 100; tb[t] = rand(14) * 100 * 29 - 1200; ttype[t] = rand(142); if (ttype[t] >= 9 && ttype[t] <= 99) {
-              ttype[t] = rand(8);
+          if (getrand(3) <= 1) {
+            ta[t] = (getrand(500) - 1) * 29 * 100; tb[t] = getrand(14) * 100 * 29 - 1200; ttype[t] = getrand(142); if (ttype[t] >= 9 && ttype[t] <= 99) {
+              ttype[t] = getrand(8);
             }
-            txtype[t] = rand(4);
+            txtype[t] = getrand(4);
           }
         }
         for (t = 0; t < bmax; t++) {
-          if (rand(2) <= 1) {
-            ba[t] = (rand(500) - 1) * 29 * 100; bb[t] = rand(15) * 100 * 29 - 1200 - 3000; if (rand(6) == 0) {
-              btype[t] = rand(9);
+          if (getrand(2) <= 1) {
+            ba[t] = (getrand(500) - 1) * 29 * 100; bb[t] = getrand(15) * 100 * 29 - 1200 - 3000; if (getrand(6) == 0) {
+              btype[t] = getrand(9);
             }
           }
         }
@@ -1224,17 +1183,17 @@ void Mainprogram() {
         srco = 0;
         t = srco; sra[t] = ma + fx; srb[t] = (13 * 29 - 12) * 100; src[t] = 30 * 100; srtype[t] = 0; sracttype[t] = 0; sre[t] = 0; srsp[t] = 0; srco++;
 
-        if (rand(4) == 0) stagecolor = rand(4);
+        if (getrand(4) == 0) stagecolor = getrand(4);
       }
 
 
 
       //メインBGM
-	  bgmplay();
+      bgmplay();
 
     } //zxon
 
-    //xx[1]=rand(100);
+    //xx[1]=getrand(100);
 
 
 
@@ -1250,20 +1209,20 @@ void Mainprogram() {
       if (key & PAD_INPUT_DOWN) {actaon[3] = 1; }
     }
 
-    //if (CheckHitKey(KEY_INPUT_F1)==1){end();}
-    if (CheckHitKey(KEY_INPUT_F1) == 1) {mainproc = 100; }
-    //if (CheckHitKey(KEY_INPUT_Q)==1){mkeytm=0;}
-    if (CheckHitKey(KEY_INPUT_O) == 1) {if (mhp >= 1) mhp = 0; if (stc >= 5) {stc = 0; stagepoint = 0; }}
+    //if (input_keydown(KEY_INPUT_F1)==1){end();}
+    //if (input_keydown(KEY_INPUT_F1) == 1) {mainproc = 100; }
+    //if (input_keydown(KEY_INPUT_Q)==1){mkeytm=0;}
+    //if (input_keydown(KEY_INPUT_O) == 1) {if (mhp >= 1) mhp = 0; if (stc >= 5) {stc = 0; stagepoint = 0; }}
 
 
     if (mkeytm <= 0) {
-      if (key & PAD_INPUT_UP || CheckHitKey(KEY_INPUT_Z) == 1) { //end();
+      if (key & PAD_INPUT_UP) { //end();
         if (actaon[1] == 10) {actaon[1] = 1; xx[0] = 1; }
         actaon[2] = 1;
       }
     }
 
-    if (key & PAD_INPUT_UP || CheckHitKey(KEY_INPUT_Z) == 1) {
+    if (key & PAD_INPUT_UP) {
       if (mjumptm == 8 && md >= -900) {
         md = -1300;
         //ダッシュ中
@@ -1444,7 +1403,7 @@ void Mainprogram() {
             mxtype = 0;
             blackx = 1;
             blacktm = 20;
-			stagerr = 0; bgmstop();
+            stagerr = 0; bgmstop();
           }
         }
       } //00
@@ -1602,7 +1561,7 @@ void Mainprogram() {
                         ttype[tt] = 800;
                       }
                     }
-					bgmstop();
+                    bgmstop();
                   }
                   //音符+
                   else if (ttype[t] == 117) {
@@ -2149,7 +2108,7 @@ void Mainprogram() {
             sr[t]++;
             if (sr[t] >= sgtype[t]) {
               sr[t] = 0;
-              ayobi(sa[t], 30000, rand(600) - 300, -1600 - rand(900), 0, 84, 0);
+              ayobi(sa[t], 30000, getrand(600) - 300, -1600 - getrand(900), 0, 84, 0);
             }
           }
 
@@ -2861,7 +2820,7 @@ void Mainprogram() {
 
              case 6:
              atm[t]+=1;xx[10]=0;
-             if (axtype[t]==1)atm[t]+=(rand(9)-4);
+             if (axtype[t]==1)atm[t]+=(getrand(9)-4);
              if (axtype[t]==2)xx[10]=100;
              if (atm[t]>=40){
              xx[22]=360;if (amuki[t]==0)xx[22]=-xx[22];
@@ -2889,9 +2848,9 @@ void Mainprogram() {
 
              if (atm[t]>=xx[15]){
              for (t3=0;t3<=xx[17];t3++){
-             xx[16]=300;xx[22]=rand(xx[16])*5/4-xx[16]/4;
+             xx[16]=300;xx[22]=getrand(xx[16])*5/4-xx[16]/4;
              a2tm[t]+=1;if (a2tm[t]>=1){xx[22]=-xx[22];a2tm[t]=-1;}
-             cyobi(aa[t]+amuki[t]*anobia[t]/2,ab[t]+600,xx[22],-400-rand(600),0,80,1,60);
+             cyobi(aa[t]+amuki[t]*anobia[t]/2,ab[t]+600,xx[22],-400-getrand(600),0,80,1,60);
              //if ((xx[16]==0) || t3==xx[16])atm[t]=0;
              }//t
              atm[t]=0;
@@ -3070,11 +3029,11 @@ void Mainprogram() {
               if (mhp == 0) {
 
                 if (atype[t] == 0 || atype[t] == 7) {
-                  amsgtm[t] = 60; amsgtype[t] = rand(7) + 1 + 1000 + (stb - 1) * 10;
+                  amsgtm[t] = 60; amsgtype[t] = getrand(7) + 1 + 1000 + (stb - 1) * 10;
                 }
 
                 if (atype[t] == 1) {
-                  amsgtm[t] = 60; amsgtype[t] = rand(2) + 15;
+                  amsgtm[t] = 60; amsgtype[t] = getrand(2) + 15;
                 }
 
                 if (atype[t] == 2 && axtype[t] >= 1 && mmutekitm <= 0) {
@@ -3086,7 +3045,7 @@ void Mainprogram() {
                 }
 
                 if (atype[t] == 4) {
-                  amsgtm[t] = 60; amsgtype[t] = rand(7) + 1 + 1000 + (stb - 1) * 10;
+                  amsgtm[t] = 60; amsgtype[t] = getrand(7) + 1 + 1000 + (stb - 1) * 10;
                 }
 
                 if (atype[t] == 5) {
@@ -3109,7 +3068,7 @@ void Mainprogram() {
                 }
 
                 if (atype[t] == 82) {
-                  amsgtm[t] = 20; amsgtype[t] = rand(1) + 31;
+                  amsgtm[t] = 20; amsgtype[t] = getrand(1) + 31;
                   xx[24] = 900; atype[t] = 83; aa[t] -= xx[24] + 100; ab[t] -= xx[24] - 100 * 0;
                 }        //82
 
@@ -3118,7 +3077,7 @@ void Mainprogram() {
                 }
 
                 if (atype[t] == 85) {
-                  amsgtm[t] = 60; amsgtype[t] = rand(1) + 85;
+                  amsgtm[t] = 60; amsgtype[t] = getrand(1) + 85;
                 }
 
 
@@ -3247,8 +3206,8 @@ void Mainprogram() {
     maintm++;
 
     xx[7] = 46;
-    if (CheckHitKey(KEY_INPUT_1) == 1) {end(); }
-    if (CheckHitKey(KEY_INPUT_SPACE) == 1) {
+    //if (input_keydown(KEY_INPUT_1) == 1) {end(); }
+    if (input_keydown(KEY_INPUT_SPACE) == 1) {
       for (t = 0; t <= xx[7]; t += 1) {
         xx[12 + t] -= 300;
       }
@@ -3304,23 +3263,22 @@ void Mainprogram() {
     if (maintm <= 10) {maintm = 11; sta = 1; stb = 1; stc = 0; over = 0; }
 
     /*
-    if (CheckHitKey(KEY_INPUT_1) == 1) {sta = 1; stb = 1; stc = 0; }
-    if (CheckHitKey(KEY_INPUT_2) == 1) {sta = 1; stb = 2; stc = 0; }
-    if (CheckHitKey(KEY_INPUT_3) == 1) {sta = 1; stb = 3; stc = 0; }
-    if (CheckHitKey(KEY_INPUT_4) == 1) {sta = 1; stb = 4; stc = 0; }
-    if (CheckHitKey(KEY_INPUT_5) == 1) {sta = 2; stb = 1; stc = 0; }
-    if (CheckHitKey(KEY_INPUT_6) == 1) {sta = 2; stb = 2; stc = 0; }
-    if (CheckHitKey(KEY_INPUT_7) == 1) {sta = 2; stb = 3; stc = 0; }
-    if (CheckHitKey(KEY_INPUT_8) == 1) {sta = 2; stb = 4; stc = 0; }
+    if (input_keydown(KEY_INPUT_1) == 1) {sta = 1; stb = 1; stc = 0; }
+    if (input_keydown(KEY_INPUT_2) == 1) {sta = 1; stb = 2; stc = 0; }
+    if (input_keydown(KEY_INPUT_3) == 1) {sta = 1; stb = 3; stc = 0; }
+    if (input_keydown(KEY_INPUT_4) == 1) {sta = 1; stb = 4; stc = 0; }
+    if (input_keydown(KEY_INPUT_5) == 1) {sta = 2; stb = 1; stc = 0; }
+    if (input_keydown(KEY_INPUT_6) == 1) {sta = 2; stb = 2; stc = 0; }
+    if (input_keydown(KEY_INPUT_7) == 1) {sta = 2; stb = 3; stc = 0; }
+    if (input_keydown(KEY_INPUT_8) == 1) {sta = 2; stb = 4; stc = 0; }
+    if (input_keydown(KEY_INPUT_9) == 1) {sta = 3; stb = 1; stc = 0; }
+    if (input_keydown(KEY_INPUT_0) == 1) {xx[0] = 1; over = 1; }
     */
-    //if (CheckHitKey(KEY_INPUT_9)==1){sta=3;stb=1;stc=0;}
-    if (CheckHitKey(KEY_INPUT_0) == 1) {xx[0] = 1; over = 1; }
-
 
     //if (CheckHitKeyAll() == 0){end();}
-    if (CheckHitKey(KEY_INPUT_RETURN) == 1) {xx[0] = 1; }
-    //if (CheckHitKey(KEY_INPUT_SPACE)==1){xx[0]=1;}
-    if (CheckHitKey(KEY_INPUT_Z) == 1) {xx[0] = 1; }
+    if (input_keydown(KEY_INPUT_RETURN) == 1) {xx[0] = 1; }
+    //if (input_keydown(KEY_INPUT_SPACE)==1){xx[0]=1;}
+    //if (input_keydown(KEY_INPUT_Z) == 1) {xx[0] = 1; }
 
     if (xx[0] == 1) {
       mainproc = 10; zxon = 0; maintm = 0;
@@ -3336,14 +3294,7 @@ void Mainprogram() {
   //描画
   rpaint();
 
-
-  //30-fps
-  xx[0] = 30;
-  if (CheckHitKey(KEY_INPUT_SPACE) == 1) {xx[0] = 60; }
-  wait2(stime, GetNowCount(), 1000 / xx[0]);
-  //wait(20);
-
-}      //Mainprogram()
+} //Mainprogram()
 
 
 void tekizimen() {
@@ -3455,41 +3406,18 @@ void tekizimen() {
 
 
 
-//スリープ
-static void wait(int interval) {
-  WaitTimer(interval);
-}
-
-//タイマー測定
-static void wait2(long stime, long etime, int FLAME_TIME) {
-  if (etime - stime < FLAME_TIME)
-    wait(FLAME_TIME - (etime - stime));
-}
-
-
-//乱数作成
-static int rand(int Rand) {
-  return GetRand(Rand);
-}
-
 //終了
 void end() {
-  //maint=3;
-  DxLib_End();
 }
 
+//色かえ(黒)(白)
+void setc0() { setcolor(0, 0, 0); }
+void setc1() { setcolor(255, 255, 255); }
 
 //文字
 void str(const char *x, int a, int b) {
-  //char d[]="あ";
-  DrawString(a, b, x, color);
-  //DrawString(10,10,xs[3].c_str(),color);
-
+  drawstring(a, b, x);
   xx[2] = 4;
-}
-
-//文字ラベル変更
-void setfont(int a) {
 }
 
 //音楽再生
@@ -5453,13 +5381,6 @@ void txmsg(const char *x, int a) {
 } //txmsg
 
 
-//フォント変更
-void setfont(int x, int y) {
-  SetFontSize(x);
-  SetFontThickness(y);
-}
-
-
 
 //グラ作成
 void eyobi(int xa, int xb, int xc, int xd, int xe, int xf, int xnobia, int xnobib, int xgtype, int xtm) {
@@ -5553,7 +5474,7 @@ void ayobi(int xa, int xb, int xc, int xd, int xnotm, int xtype, int xxtype) {
          */
       }
 
-      if (xtype == 87) {atm[aco] = rand(179) + (-90); }
+      if (xtype == 87) {atm[aco] = getrand(179) + (-90); }
 
       aco += 1; if (aco >= amax - 1) {aco = 0; }
     } //t1

@@ -1,16 +1,214 @@
 //"use strict";
 
 var LibraryDLM = {
+    $gfxContext: null,
     $DLM: {
         audioCtx: null,
         audioBuffer: [],
         audioSources: [],
         bgmPlayer: null,
         currentBgm: 0,
+        mirror: false,
+        images: [],
+        fontSize: 14,
+        fontType: 0,
     },
 
-    sound_init: function() {
+    //------------------------------------------------------------------------------
+    // Graphics
+    //------------------------------------------------------------------------------
+    
+    graphics_init: function() {
+        var canvas = Module['canvas'];
+        gfxContext = canvas.getContext('2d');
+        gfxContext.textBaseline = 'top';
+        gfxContext.strokeStyle = 'black';
+    },
 
+    loadimage: function(filename) {
+        filename = UTF8ToString(filename);
+        var img = new Image();
+        img.src = filename;
+        DLM.images.push({
+            img: img,
+            x: 0,
+            y: 0,
+            w: 1,
+            h: 1,
+        });
+        return DLM.images.length - 1;
+    },
+
+    subimage: function(x, y, w, h, img) {
+        var src = DLM.images[img];
+        DLM.images.push({
+            img: src.img,
+            x: x,
+            y: y,
+            w: w,
+            h: h
+        });
+        return DLM.images.length - 1;
+    },
+
+    getimagesize: function(img, pw, ph) {
+        var src = DLM.images[img];
+        setValue(pw, src.w, 'i32');
+        setValue(ph, src.h, 'i32');
+    },
+
+    clearscreen: function() {
+        gfxContext.fillRect(0, 0, 480, 420);
+    },
+
+    drawline: function(x, y, w, h) {
+        gfxContext.beginPath();
+        gfxContext.moveTo(x, y);
+        gfxContext.lineTo(w, h);
+        gfxContext.closePath();
+        gfxContext.stroke();
+    },
+
+    drawrect: function(x, y, w, h) {
+        gfxContext.strokeRect(x, y, w, h);
+    },
+
+    fillrect: function(x, y, w, h) {
+        gfxContext.fillRect(x, y, w, h);
+    },
+
+    drawarc: function(x, y, w, h) {
+        gfxContext.lineWidth = 0.5;
+        gfxContext.strokeStyle = 'black';
+        gfxContext.arc(x, y, w, 0, Math.PI * 2);
+        gfxContext.stroke();
+    },
+
+    fillarc: function(x, y, w, h) {
+        gfxContext.beginPath();
+        gfxContext.arc(x, y, w, 0, Math.PI * 2);
+        gfxContext.closePath();
+        gfxContext.fill();
+    },
+
+
+    drawimage: function(img, x, y) {
+        var src = DLM.images[img];
+        if (!src)
+            return;
+        
+        gfxContext.fillStyle = 'white';
+        if (DLM.mirror) {
+            gfxContext.save();
+            gfxContext.translate(x + src.w, y);
+            gfxContext.scale(-1, 1);
+            gfxContext.drawImage(src.img, src.x, src.y, src.w, src.h, 0, 0, src.w, src.h);
+            gfxContext.restore();
+        }
+        else {
+            gfxContext.drawImage(src.img, src.x, src.y, src.w, src.h, x, y, src.w, src.h);
+        }
+    },
+
+    drawimageflip: function(img, x, y) {
+        var src = DLM.images[img];
+        if (!src)
+            return;
+        
+        gfxContext.fillStyle = 'white';
+        gfxContext.save();
+        gfxContext.translate(x, y + src.h);
+        gfxContext.scale(1, -1);
+        gfxContext.drawImage(src.img, src.x, src.y, src.w, src.h, 0, 0, src.w, src.h);
+        gfxContext.restore();
+    },
+
+    setfont: function (size, thick) {
+        DLM.fontSize = size;
+    },
+
+    setfonttype: function(type) {
+        DLM.fontType = type;
+    },
+
+    drawstring: function(x, y, str) {
+        str = UTF8ToString(str);
+        gfxContext.font = DLM.fontSize + 'px sans-serif';
+        if (DLM.fontType == 1) {
+            var f = gfxContext.fillStyle;
+            gfxContext.fillStyle = 'black';
+            gfxContext.fillText(str, x, y - 1);
+            gfxContext.fillText(str, x, y + 1);
+            gfxContext.fillText(str, x - 1, y);
+            gfxContext.fillText(str, x + 1, y);
+            gfxContext.fillStyle = f;
+
+        }
+        gfxContext.fillText(str, x, y);
+    },
+
+    setcolor: function(r, g, b) {
+        gfxContext.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + 255 + ')';
+    },
+
+    setmirror: function(mirror) {
+        DLM.mirror = (mirror != 0);
+    },
+
+    //------------------------------------------------------------------------------
+    // Input
+    //------------------------------------------------------------------------------
+    input_init: function() {
+        var canvas = Module['canvas'];
+        var keydown_callback = function (e) {
+            e.preventDefault();
+            if (e.repeat)
+                return;
+
+            if (e.type == 'keydown') {
+                DLM.keyboard[e.keyCode] = 1;
+            }
+            else if (e.type == 'keyup') {
+                DLM.keyboard[e.keyCode] = 0;
+            }
+        };
+        canvas.addEventListener('keydown', keydown_callback, true);
+        canvas.addEventListener('keyup', keydown_callback, true);
+        DLM.keyboard = [];
+    },
+
+    input_waitkey: function() {
+    },
+
+    input_keydown: function(key) {
+        return DLM.keyboard[key] | 0;
+    },
+
+    input_getjoypad: function() {
+        joypad = 0;
+        var key = DLM.keyboard;
+        if (key[37]) joypad |= 2;
+        if (key[38]) joypad |= 8;
+        if (key[39]) joypad |= 4;
+        if (key[40]) joypad |= 1;
+
+        return joypad;
+    },
+
+    getrand: function(maxValue) {
+        return Math.floor(Math.random() * maxValue);
+    },
+
+    gettime: function() {
+        var t = new Date().getTime();
+        return t % 0xfffffff;
+    },
+
+    //------------------------------------------------------------------------------
+    // Sound
+    //------------------------------------------------------------------------------
+
+    sound_init: function() {
         var audioCtx;
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -129,5 +327,5 @@ var LibraryDLM = {
         player.play();
     }
 };
-autoAddDeps(LibraryDLM, '$DLM');
+autoAddDeps(LibraryDLM, '$DLM', '$gfxContext');
 mergeInto(LibraryManager.library, LibraryDLM);

@@ -1,9 +1,8 @@
 OPTIONS = -o dlm.js \
 	-s NO_EXIT_RUNTIME=1 \
-	--preload-file res \
 	--js-library lib.js
 
-SRC = dxlib.cpp loadg.cpp main.cpp
+SRC = loadg.cpp main.cpp
 
 debug:
 	emcc -g4 $(OPTIONS) $(SRC)
