@@ -155,44 +155,129 @@ var LibraryDLM = {
         DLM.mirror = (mirror != 0);
     },
 
+    begindraw: function() {
+    },
+
+    enddraw: function() {
+        var canvas = Module['canvas'];
+        var h = canvas.height;
+        if (h <= 420)
+            return;
+
+        var drawArrow = function () {
+        }
+
+        gfxContext.clearRect(0, 420, canvas.width, h - 420);
+        gfxContext.save();
+
+        var key = [];
+        key[0] = (DLM.touch & 1) != 0;
+        key[1] = (DLM.touch & 8) != 0;
+        key[2] = (DLM.touch & 2) != 0;
+        key[3] = (DLM.touch & 4) != 0;
+
+        gfxContext.fillStyle = 'white';
+        gfxContext.strokeStyle = 'black';
+        gfxContext.strokeWidth = 2;
+        gfxContext.translate(140, 420 + (h - 420) / 2);
+        for (var i = 0; i < 4; i++) {
+            gfxContext.globalAlpha =  key[i] ? 0.6 : 0.3;
+            gfxContext.beginPath();
+            gfxContext.moveTo(-5, 0);
+            gfxContext.lineTo(-35, -30);
+            gfxContext.lineTo(-80, -30);
+            gfxContext.lineTo(-80, 30);
+            gfxContext.lineTo(-35, 30);
+            gfxContext.closePath();
+            gfxContext.fill();
+            gfxContext.stroke();
+            gfxContext.rotate(Math.PI / 2);
+        }
+
+        gfxContext.setTransform(1, 0, 0, 1, 340, 420 + (h - 420) / 2);
+        gfxContext.globalAlpha = (DLM.touch & 0x10) != 0 ? 0.6 : 0.3;
+        gfxContext.fillRect(-40, -40, 80, 80);
+        gfxContext.strokeRect(-40, -40, 80, 80);
+
+        gfxContext.restore();
+    },
+
     //------------------------------------------------------------------------------
     // Input
     //------------------------------------------------------------------------------
     input_init: function() {
+        DLM.key = 0;
+        DLM.touch = 0;
+        DLM.mouse = 0;
+
         var canvas = Module['canvas'];
-        var keydown_callback = function (e) {
+        var key_callback = function (e) {
             e.preventDefault();
             if (e.repeat)
                 return;
 
+            var buttons = 0;
+            switch (e.keyCode) {
+                case 37: buttons |= 1; break;
+                case 38: buttons |= 16; break;
+                case 39: buttons |= 2; break;
+                case 40: buttons |= 4; break;
+                case 13: buttons |= 32; break;
+            }
+
             if (e.type == 'keydown') {
-                DLM.keyboard[e.keyCode] = 1;
+                DLM.key |= buttons;
             }
             else if (e.type == 'keyup') {
-                DLM.keyboard[e.keyCode] = 0;
+                DLM.key = DLM.key & (~buttons);
             }
         };
-        canvas.addEventListener('keydown', keydown_callback, true);
-        canvas.addEventListener('keyup', keydown_callback, true);
-        DLM.keyboard = [];
+
+        var mouse_callback = function (e) {
+            switch (e.type) {
+                case 'mousedown': DLM.mouse |= 32; break;
+                case 'mouseup': DLM.mouse &= (~32); break;
+            }
+        }
+
+        var check_touch = function (t, x1, y1, x2, y2) {
+            return (t.clientX > x1 && t.clientX < x2 &&
+                    t.clientY > y1 && t.clientY < y2);
+        }
+
+        var touch_callback = function (e) {
+            e.preventDefault();
+            var touch = 0;
+            var centerY = 420 + (Module['canvas'].height - 420) / 2;
+
+            for (var i = 0; i < e.touches.length; i++) {
+                var t = e.touches.item(i);
+                if (check_touch(t, 140 - 40, centerY + 20, 140 + 40, centerY + 100)) touch |= 4;
+                else if (check_touch(t, 140 - 40, centerY - 100, 140 + 40, centerY - 40)) touch |= 8;
+                else if (check_touch(t, 140 - 100, centerY - 40, 140, centerY + 40)) touch |= 1;
+                else if (check_touch(t, 140, centerY - 40, 140 + 100, centerY + 40)) touch |= 2;
+
+                if (check_touch(t, 340 - 100, centerY - 100, 340 + 100, centerY + 100)) touch |= 0x10;
+                touch |= 0x20;
+            }
+            DLM.touch = touch;
+        }
+
+        canvas.addEventListener('keydown', key_callback, true);
+        canvas.addEventListener('keyup', key_callback, true);
+        canvas.addEventListener('mousedown', mouse_callback, true);
+        canvas.addEventListener('mouseup', mouse_callback, true);
+        canvas.addEventListener('touchstart', touch_callback, true);
+        canvas.addEventListener('touchend', touch_callback, true);
+        canvas.addEventListener('touchmove', touch_callback, true);
+        canvas.addEventListener('touchcancel', touch_callback, true);
     },
 
     input_waitkey: function() {
     },
 
-    input_keydown: function(key) {
-        return DLM.keyboard[key] | 0;
-    },
-
-    input_getjoypad: function() {
-        joypad = 0;
-        var key = DLM.keyboard;
-        if (key[37]) joypad |= 2;
-        if (key[38]) joypad |= 8;
-        if (key[39]) joypad |= 4;
-        if (key[40]) joypad |= 1;
-
-        return joypad;
+    input_get: function() {
+        return DLM.key | DLM.touch | DLM.mouse;
     },
 
     getrand: function(maxValue) {
@@ -209,6 +294,7 @@ var LibraryDLM = {
     //------------------------------------------------------------------------------
 
     sound_init: function() {
+        return;
         var audioCtx;
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -275,16 +361,19 @@ var LibraryDLM = {
             if (audioCtx == null)
                 return;
 
-            var source = audioCtx.createBufferSource();
-            source.buffer = DLM.audioBuffer[i];
-            source.connect(audioCtx.destination);
-            source.start(0, s, d);
-            source.onended = function () {
-                if (DLM.audioSources[x] == source) {
-                    DLM.audioSources[x] = null;
+            var buf = DLM.audioBuffer[i];
+            if (buf) {
+                var source = audioCtx.createBufferSource();
+                source.buffer = buf;
+                source.connect(audioCtx.destination);
+                source.start(0, s, d);
+                source.onended = function () {
+                    if (DLM.audioSources[x] == source) {
+                        DLM.audioSources[x] = null;
+                    }
                 }
+                DLM.audioSources[x] = source;
             }
-            DLM.audioSources[x] = source;
         }
     },
 

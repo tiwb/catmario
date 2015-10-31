@@ -1128,7 +1128,7 @@ void Mainprogram() {
 
 
   //キー
-  key = input_getjoypad();
+  key = input_get();
 
 
   if (mainproc == 1 && tmsgtype == 0) {
@@ -1216,13 +1216,13 @@ void Mainprogram() {
 
 
     if (mkeytm <= 0) {
-      if (key & PAD_INPUT_UP) { //end();
+      if (key & PAD_INPUT_JUMP) { //end();
         if (actaon[1] == 10) {actaon[1] = 1; xx[0] = 1; }
         actaon[2] = 1;
       }
     }
 
-    if (key & PAD_INPUT_UP) {
+	if (key & PAD_INPUT_JUMP) {
       if (mjumptm == 8 && md >= -900) {
         md = -1300;
         //ダッシュ中
@@ -3207,7 +3207,7 @@ void Mainprogram() {
 
     xx[7] = 46;
     //if (input_keydown(KEY_INPUT_1) == 1) {end(); }
-    if (input_keydown(KEY_INPUT_SPACE) == 1) {
+	if (key != 0) {
       for (t = 0; t <= xx[7]; t += 1) {
         xx[12 + t] -= 300;
       }
@@ -3276,7 +3276,8 @@ void Mainprogram() {
     */
 
     //if (CheckHitKeyAll() == 0){end();}
-    if (input_keydown(KEY_INPUT_RETURN) == 1) {xx[0] = 1; }
+	if (key != 0) { xx[0] = 1; }
+    //if (input_keydown(KEY_INPUT_RETURN) == 1) {xx[0] = 1; }
     //if (input_keydown(KEY_INPUT_SPACE)==1){xx[0]=1;}
     //if (input_keydown(KEY_INPUT_Z) == 1) {xx[0] = 1; }
 
@@ -3292,7 +3293,9 @@ void Mainprogram() {
 
 
   //描画
+  begindraw();
   rpaint();
+  enddraw();
 
 } //Mainprogram()
 
