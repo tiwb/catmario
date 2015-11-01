@@ -240,25 +240,28 @@ var LibraryDLM = {
             }
         }
 
-        var check_touch = function (t, x1, y1, x2, y2) {
-            return (t.clientX > x1 && t.clientX < x2 &&
-                    t.clientY > y1 && t.clientY < y2);
+        var check_touch = function (x, y, x1, y1, x2, y2) {
+            return (x > x1 && x < x2 && y > y1 && y < y2);
         }
 
         var touch_callback = function (e) {
             e.preventDefault();
             var touch = 0;
-            var centerY = 420 + (Module['canvas'].height - 420) / 2;
+            var centerY = 420 + (canvas.height - 420) / 2;
+            var rect = canvas.getBoundingClientRect();
 
             for (var i = 0; i < e.touches.length; i++) {
                 var t = e.touches.item(i);
-                if (check_touch(t, 140 - 40, centerY + 20, 140 + 40, centerY + 100)) touch |= 4;
-                else if (check_touch(t, 140 - 40, centerY - 100, 140 + 40, centerY - 40)) touch |= 8;
-                else if (check_touch(t, 140 - 100, centerY - 40, 140, centerY + 40)) touch |= 1;
-                else if (check_touch(t, 140, centerY - 40, 140 + 100, centerY + 40)) touch |= 2;
+                var x = (t.clientX - rect.left) / (rect.right - rect.left) * canvas.width;
+                var y = (t.clientY - rect.top) / (rect.bottom - rect.top) * canvas.height;
 
-                if (check_touch(t, 340 - 100, centerY - 100, 340 + 100, centerY + 100)) touch |= 0x10;
-                touch |= 0x20;
+                if (check_touch(x, y, 140 - 40, centerY + 20, 140 + 40, centerY + 100)) touch |= 4;
+                else if (check_touch(x, y, 140 - 40, centerY - 100, 140 + 40, centerY - 40)) touch |= 8;
+                else if (check_touch(x, y, 140 - 100, centerY - 40, 140, centerY + 40)) touch |= 1;
+                else if (check_touch(x, y, 140, centerY - 40, 140 + 100, centerY + 40)) touch |= 2;
+
+                if (check_touch(x, y, 340 - 100, centerY - 100, 340 + 100, centerY + 100)) touch |= 0x10;
+                if (check_touch(x, y, 0, 0, 480, 420)) touch |= 0x20;
             }
             DLM.touch = touch;
         }

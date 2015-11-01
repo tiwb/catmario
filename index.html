@@ -67,10 +67,13 @@
         Module.setStatus('Loading...');
 
         window.onerror = function (event) {
+            document.documentElement.innerHTML = event;
         };
 
-        Module.print(document.documentElement.clientWidth, document.documentElement.clientHeight);
-        canvas.height = document.documentElement.clientHeight;
+        if (true) {
+            var rect = canvas.getBoundingClientRect();
+            canvas.height = Math.max(document.documentElement.clientHeight - rect.top, 420);
+        }
 
         var angle = 0;
         var drawLoading = function () {

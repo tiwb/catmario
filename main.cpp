@@ -998,11 +998,15 @@ void rpaint() {
         if (tmsgtm == 1) {tmsgtm = 80000000; tmsgtype = 2; }
       }        //1
       else if (tmsgtype == 2) {
-        tmsgy = 0; tmsgtype = 3; tmsgtm = 15 + 1;
+          if (key & (PAD_INPUT_DECIDE | PAD_INPUT_JUMP)) {
+            tmsgy = 0; tmsgtype = 3; tmsgtm = 15 + 1;
+          }
+          else {
+            tmsgtm++;
+          }
       } else if (tmsgtype == 3) {
         xx[0] = 1200;
         tmsgy += xx[0];
-        if (tmsgtm == 15) input_waitkey();
         if (tmsgtm == 1) {tmsgtm = 0; tmsgtype = 0; tmsgy = 0; }
       }        //1
 
@@ -3276,7 +3280,7 @@ void Mainprogram() {
     */
 
     //if (CheckHitKeyAll() == 0){end();}
-	if (key != 0) { xx[0] = 1; }
+    if (key & (PAD_INPUT_DECIDE | PAD_INPUT_JUMP)) { xx[0] = 1; }
     //if (input_keydown(KEY_INPUT_RETURN) == 1) {xx[0] = 1; }
     //if (input_keydown(KEY_INPUT_SPACE)==1){xx[0]=1;}
     //if (input_keydown(KEY_INPUT_Z) == 1) {xx[0] = 1; }
