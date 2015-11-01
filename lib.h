@@ -5,19 +5,16 @@ typedef uint8_t byte;
 #define TRUE 1
 #define FALSE 0
 
-
 #define DX_FONTTYPE_EDGE                            (1)             // エッジつきフォント
 #define DX_FONTTYPE_NORMAL                          (0)             // ノーマルフォント
-
-#define DX_INPUT_KEY_PAD1                           (0x1001)        // キー入力とパッド１入力
-
 
 #define PAD_INPUT_LEFT                              (0x01)
 #define PAD_INPUT_RIGHT                             (0x02)
 #define PAD_INPUT_DOWN                              (0x04)
 #define PAD_INPUT_UP                                (0x08)
-#define PAD_INPUT_JUMP								(0x10)
-#define PAD_INPUT_DECIDE							(0x20)
+#define PAD_INPUT_JUMP                              (0x10)
+#define PAD_INPUT_CLICK                             (0x20)
+#define PAD_INPUT_ACTION                            (PAD_INPUT_JUMP | PAD_INPUT_CLICK)
 
 extern "C" {
   void input_init();
@@ -60,4 +57,7 @@ extern "C" {
 
   int getrand(int value);
   int gettime();
+
+  void adshow();
+  void adhide();
 }

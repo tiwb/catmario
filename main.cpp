@@ -43,6 +43,8 @@ int stageonoff = 0;
 void Mainprogram();
 void rpaint();
 int maint;
+byte paused = 0;
+byte waitpause = 0;
 
 //描画
 int grap[161][8], mgrap[51];
@@ -998,12 +1000,8 @@ void rpaint() {
         if (tmsgtm == 1) {tmsgtm = 80000000; tmsgtype = 2; }
       }        //1
       else if (tmsgtype == 2) {
-          if (key & (PAD_INPUT_DECIDE | PAD_INPUT_JUMP)) {
-            tmsgy = 0; tmsgtype = 3; tmsgtm = 15 + 1;
-          }
-          else {
-            tmsgtm++;
-          }
+        paused = 1;
+        tmsgy = 0; tmsgtype = 3; tmsgtm = 15 + 1;
       } else if (tmsgtype == 3) {
         xx[0] = 1200;
         tmsgy += xx[0];
@@ -1128,12 +1126,15 @@ void Mainprogram() {
 
   stime = time;
 
-  if (ending == 1) mainproc = 2;
-
-
   //キー
   key = input_get();
 
+  if (paused) { 
+    if (key) paused = 0;
+    return;
+  }
+
+  if (ending == 1) mainproc = 2;
 
   if (mainproc == 1 && tmsgtype == 0) {
 
@@ -1226,7 +1227,7 @@ void Mainprogram() {
       }
     }
 
-	if (key & PAD_INPUT_JUMP) {
+    if (key & PAD_INPUT_JUMP) {
       if (mjumptm == 8 && md >= -900) {
         md = -1300;
         //ダッシュ中
@@ -3211,7 +3212,7 @@ void Mainprogram() {
 
     xx[7] = 46;
     //if (input_keydown(KEY_INPUT_1) == 1) {end(); }
-	if (key != 0) {
+    if (key != 0) {
       for (t = 0; t <= xx[7]; t += 1) {
         xx[12 + t] -= 300;
       }
@@ -3255,9 +3256,27 @@ void Mainprogram() {
 
   if (mainproc == 10) {
     maintm++;
-
     if (fast == 1) maintm += 2;
-    if (maintm >= 30) {maintm = 0; mainproc = 1; zxon = 0; }
+
+    if (nokori == 2) {
+      if (maintm >= 30) {
+        maintm = 0; mainproc = 1; zxon = 0;
+      }
+    }
+    else {
+      if (maintm == 1) {
+        adshow();
+        waitpause = 1;
+      }
+      if (key) waitpause = 0;
+      if (maintm == 29) {
+        if (waitpause) paused = 1;
+      }
+      if (maintm >= 30) {
+          adhide();
+          maintm = 0; mainproc = 1; zxon = 0;
+      }
+    }
   }    //if (mainproc==10){
 
 
@@ -3280,7 +3299,7 @@ void Mainprogram() {
     */
 
     //if (CheckHitKeyAll() == 0){end();}
-    if (key & (PAD_INPUT_DECIDE | PAD_INPUT_JUMP)) { xx[0] = 1; }
+    if (key & PAD_INPUT_ACTION) { xx[0] = 1; }
     //if (input_keydown(KEY_INPUT_RETURN) == 1) {xx[0] = 1; }
     //if (input_keydown(KEY_INPUT_SPACE)==1){xx[0]=1;}
     //if (input_keydown(KEY_INPUT_Z) == 1) {xx[0] = 1; }

@@ -417,6 +417,54 @@ var LibraryDLM = {
 
         player.loop = true;
         player.play();
+    },
+
+    //------------------------------------------------------------------------------
+    // AD
+    //------------------------------------------------------------------------------
+    adshow: function() {
+        console.log('ADSHOW');
+        var ad = document.getElementById('ad');
+            console.log(ad);
+        if (ad) {
+            DLM.ad = ad;
+            console.log(ad);
+        }
+
+        /*
+        if (!DLM.ad) {
+            var ad = document.createElement('DIV');
+            DLM.ad = ad;
+            document.body.appendChild(ad);
+            ad.innerHTML = '<script type="text/javascript">var cpro_id = "u2379481"</script><script src="http://cpro.baidustatic.com/cpro/ui/cm.js" type="text/javascript"></script>';
+            ad.style.position = 'absolute';
+            ad.style.color = 'white';
+            ad.style.padding = '0';
+            ad.style.margin = '0';
+
+            var sc = document.createElement('SCRIPT');
+            sc.src = "http://cpro.baidustatic.com/cpro/ui/cm.js";
+            sc.type = "text/javascript";
+
+            ad.appendChild(sc);
+        }
+        */
+        if (DLM.ad) {
+            var ad = DLM.ad;
+            var canvas = Module['canvas'];
+            var rect = canvas.getBoundingClientRect();
+            ad.style.left = rect.left + 'px';
+            ad.style.top = rect.top + 'px';
+            ad.style.width = rect.width + 'px';
+            ad.style.height = 100;
+            DLM.ad.hidden = false;
+        }
+    },
+
+    adhide: function() {
+        if (DLM.ad) {
+            DLM.ad.hidden = true;
+        }
     }
 };
 autoAddDeps(LibraryDLM, '$DLM', '$gfxContext');
