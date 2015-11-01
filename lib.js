@@ -12,6 +12,7 @@ var LibraryDLM = {
         images: [],
         fontSize: 14,
         fontType: 0,
+        color: 'white',
     },
 
     //------------------------------------------------------------------------------
@@ -58,6 +59,7 @@ var LibraryDLM = {
     },
 
     clearscreen: function() {
+        gfxContext.fillStyle = DLM.color;
         gfxContext.fillRect(0, 0, 480, 420);
     },
 
@@ -66,21 +68,24 @@ var LibraryDLM = {
         gfxContext.moveTo(x, y);
         gfxContext.lineTo(w, h);
         gfxContext.closePath();
+        gfxContext.strokeStyle = DLM.color;
         gfxContext.stroke();
     },
 
     drawrect: function(x, y, w, h) {
+        gfxContext.strokeStyle = DLM.color;
         gfxContext.strokeRect(x, y, w, h);
     },
 
     fillrect: function(x, y, w, h) {
+        gfxContext.fillStyle = DLM.color;
         gfxContext.fillRect(x, y, w, h);
     },
 
     drawarc: function(x, y, w, h) {
         gfxContext.lineWidth = 0.5;
-        gfxContext.strokeStyle = 'black';
         gfxContext.arc(x, y, w, 0, Math.PI * 2);
+        gfxContext.strokeStyle = DLM.color;
         gfxContext.stroke();
     },
 
@@ -88,6 +93,7 @@ var LibraryDLM = {
         gfxContext.beginPath();
         gfxContext.arc(x, y, w, 0, Math.PI * 2);
         gfxContext.closePath();
+        gfxContext.fillStyle = DLM.color;
         gfxContext.fill();
     },
 
@@ -135,20 +141,19 @@ var LibraryDLM = {
         str = UTF8ToString(str);
         gfxContext.font = DLM.fontSize + 'px sans-serif';
         if (DLM.fontType == 1) {
-            var f = gfxContext.fillStyle;
             gfxContext.fillStyle = 'black';
             gfxContext.fillText(str, x, y - 1);
             gfxContext.fillText(str, x, y + 1);
             gfxContext.fillText(str, x - 1, y);
             gfxContext.fillText(str, x + 1, y);
-            gfxContext.fillStyle = f;
 
         }
+        gfxContext.fillStyle = DLM.color;
         gfxContext.fillText(str, x, y);
     },
 
     setcolor: function(r, g, b) {
-        gfxContext.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + 255 + ')';
+        DLM.color = 'rgba(' + r + ',' + g + ',' + b + ',' + 255 + ')';
     },
 
     setmirror: function(mirror) {
@@ -223,6 +228,7 @@ var LibraryDLM = {
                 case 39: buttons |= 2; break;
                 case 40: buttons |= 4; break;
                 case 13: buttons |= 32; break;
+                case 32: buttons |= 8; break;
             }
 
             if (e.type == 'keydown') {
@@ -297,7 +303,7 @@ var LibraryDLM = {
     //------------------------------------------------------------------------------
 
     sound_init: function() {
-        return;
+        //return;
         var audioCtx;
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -383,7 +389,7 @@ var LibraryDLM = {
     soundstop: function(x) {
         var s = DLM.audioSources[x];
         if (s) {
-            s.stop();
+            try { s.stop(0); } catch (err) {}
             DLM.audioSources[x] = null;
         }
     },
@@ -423,12 +429,9 @@ var LibraryDLM = {
     // AD
     //------------------------------------------------------------------------------
     adshow: function() {
-        console.log('ADSHOW');
         var ad = document.getElementById('ad');
-            console.log(ad);
         if (ad) {
             DLM.ad = ad;
-            console.log(ad);
         }
 
         /*
@@ -465,6 +468,10 @@ var LibraryDLM = {
         if (DLM.ad) {
             DLM.ad.hidden = true;
         }
+    },
+
+    updatescore: function(score, life) {
+        console.log("Score: ", score, life);
     }
 };
 autoAddDeps(LibraryDLM, '$DLM', '$gfxContext');

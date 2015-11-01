@@ -1,6 +1,8 @@
 ﻿#include "lib.h"
 #include <math.h>
 
+//#define TEST_MODE
+
 void loadg();
 
 static inline int abs(int v) {
@@ -43,8 +45,10 @@ int stageonoff = 0;
 void Mainprogram();
 void rpaint();
 int maint;
+
 byte paused = 0;
 byte waitpause = 0;
+int score = 0;
 
 //描画
 int grap[161][8], mgrap[51];
@@ -461,8 +465,6 @@ void rpaint() {
 
 
     //g.setFlipMode(Graphics.FLIP_NONE);
-    //}//muteki
-
 
 
 
@@ -1034,7 +1036,21 @@ void rpaint() {
 
     //drawstringf(10,10,GetColor(255,255,255),"X … %d",anobib[0]);
 
-  } //if (mainproc==1){
+    //score
+    {
+      char buff[128];
+      setfonttype(DX_FONTTYPE_EDGE);
+      setc1();
+      snprintf(buff, sizeof(buff), "SCORE: %d", score);
+      drawstring(10, 5, buff);
+#ifdef TEST_MODE
+      snprintf(buff, sizeof(buff), "st:%d-%d-%d mainproc:%d", sta, stb, stc, mainproc);
+      drawstring(10, 25, buff);
+#endif
+      setfonttype(DX_FONTTYPE_NORMAL);
+    }
+
+  } //if (mainproc==1)
 
 
   if (mainproc == 2) {
@@ -1326,7 +1342,10 @@ void Mainprogram() {
 
     //HPがなくなったとき
     if (mhp <= 0 && mhp >= -9) {
-      mkeytm = 12; mhp = -20; mtype = 200; mtm = 0; soundplay(12); bgmstop(); soundstop(11); soundstop(16);
+#ifdef TEST_MODE
+      if ((key & PAD_INPUT_CLICK) == 0) mhp = 1; else
+#endif
+      {mkeytm = 12; mhp = -20; mtype = 200; mtm = 0; soundplay(12); bgmstop(); soundstop(11); soundstop(16);}
     }    //mhp
          //if (mhp<=-10){
     if (mtype == 200) {
@@ -1403,6 +1422,7 @@ void Mainprogram() {
               stc += 10;
             } else {
               stc++;
+              fx = 0;
             }
             mb = -80000000;
             mxtype = 0;
@@ -1455,7 +1475,8 @@ void Mainprogram() {
           if (mtype == 301) {
             ending = 1;
           } else {
-            sta++; stb = 0; stc = 0;
+            sta++; stb = 1; stc = 0;
+            zxon = 0; tyuukan = 0; mainproc = 10; maintm = 0;
           }
         }
 
@@ -1512,6 +1533,12 @@ void Mainprogram() {
       }
     }
 
+#ifdef TEST_MODE
+    if (mb > 60000) mb = 60000;
+    if (key & PAD_INPUT_UP) { md = 0; mb -= 1000; }
+#endif
+
+
 
 //地面判定初期化
     mzimen = 0;
@@ -1524,8 +1551,6 @@ void Mainprogram() {
 //if (mb>=42000){mb=42000;mzimen=1;}
     if (mb >= 38000 && mhp >= 0 && stagecolor == 4) {mhp = -2; mmsgtm = 30; mmsgtype = 55; }
     if (mb >= 52000 && mhp >= 0) {mhp = -2; }
-
-
 
 
 
@@ -3201,9 +3226,11 @@ void Mainprogram() {
 
 
 
-
-
-  }    //if (mainproc==1){
+    // update score/
+    if (stc < 5) {
+      score = (sta - 1) * 40000 + (stb - 1) * 10000 + stc * 1000 + fx / 1000;
+    }
+  }    //if (mainproc==1)
 
 
   //スタッフロール
@@ -3248,9 +3275,23 @@ void Mainprogram() {
       xx[12 + t] -= 100;
     }                                          //t
 
-    if (xx[30] == -200) {bgmchange(106); }
-    if (xx[30] <= -400) {mainproc = 100; nokori = 2; maintm = 0; ending = 0; }
+    if (xx[30] <= -400) {
+      if (ending == 1) {
+        ending = 0;
+        maintm = 2;
+        if (sta == 1) { bgmstop(); soundplay(12); }
+        else { 
+          updatescore(score, nokori);
+          mainproc = 100; nokori = 2; 
+        }
+      }
+    }
 
+    if (ending == 0) {
+      if (maintm > 140) {
+        maintm = 0; zxon = 0; mainproc = 10; mtm = 0; mkeytm = 0; nokori--;
+      }
+    }
   }    //mainproc==2
 
 
@@ -3265,6 +3306,7 @@ void Mainprogram() {
     }
     else {
       if (maintm == 1) {
+        updatescore(score, nokori);
         adshow();
         waitpause = 1;
       }
@@ -3285,6 +3327,9 @@ void Mainprogram() {
     maintm++; xx[0] = 0;
     if (maintm <= 10) {maintm = 11; sta = 1; stb = 1; stc = 0; over = 0; }
 
+#ifdef TEST_MODE
+    {sta = 1; stb = 3; stc = 0; }
+#endif
     /*
     if (input_keydown(KEY_INPUT_1) == 1) {sta = 1; stb = 1; stc = 0; }
     if (input_keydown(KEY_INPUT_2) == 1) {sta = 1; stb = 2; stc = 0; }

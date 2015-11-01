@@ -60,4 +60,5 @@ extern "C" {
 
   void adshow();
   void adhide();
+  void updatescore(int score, int life);
 }

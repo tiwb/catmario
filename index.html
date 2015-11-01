@@ -48,8 +48,8 @@
         <script type="text/javascript">var cpro_id = "u2379481"</script>
         <script src="http://cpro.baidustatic.com/cpro/ui/cm.js" type="text/javascript"></script>
     </div>
-    <canvas id="canvas" width="480" height="640" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
-    <textarea id="output" rows="8" readonly></textarea>
+    <canvas id="canvas" width="480" height="420" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
+    <!--<textarea id="output" rows="8" readonly></textarea>-->
     <script type='text/javascript'>
         var canvas = document.getElementById('canvas');
 
@@ -78,12 +78,15 @@
         Module.setStatus('Loading...');
 
         window.onerror = function (event) {
-            document.documentElement.innerHTML = event;
+            document.documentElement.innerHTML = event + event.callstack;
         };
 
-        if (true) {
+        if (document.documentElement.clientWidth <= 480) {
             var rect = canvas.getBoundingClientRect();
-            canvas.height = Math.max(document.documentElement.clientHeight - rect.top, 420);
+            var height = document.documentElement.clientHeight - rect.top;
+            if (height > 600) {
+                canvas.height = height;
+            }
         }
 
         var angle = 0;
