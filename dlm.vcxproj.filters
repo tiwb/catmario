@@ -6,6 +6,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib.h" />
+    <ClInclude Include="str.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Makefile" />

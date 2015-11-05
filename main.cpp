@@ -55,6 +55,7 @@ int grap[161][8], mgrap[51];
 
 //文字
 void str(const char* c, int a, int b);
+void stri(int id, int a, int b);
 
 
 //)
@@ -123,7 +124,7 @@ int titem[tmax], txtype[tmax];
 
 //メッセージブロック
 int tmsgtm, tmsgtype, tmsgx, tmsgy, tmsgnobix, tmsgnobiy, tmsg;
-void ttmsg(); void txmsg(const char* x, int a);
+void ttmsg(); void txmsg(int x, int a);
 
 //効果を持たないグラ
 void eyobi(int xa, int xb, int xc, int xd, int xe, int xf, int xnobia, int xnobib, int xgtype, int xtm);
@@ -203,9 +204,48 @@ const char* xs[31];
 long stime;
 
 
+// Language
+
+// language string def
+#define JP(id, s)  id,
+#define EN(id, s) 
+#define CN(id, s) 
+enum StringIDs {
+  IDS_EMPTY,
+#include "str.h"
+  IDS_COUNT,
+};
+enum LanguageID {
+  LANG_JP,
+  LANG_EN,
+  LANG_CN,
+  LANG_COUNT,
+};
+
+static const char* string_table[LANG_COUNT][IDS_COUNT];
+static int lang = 0;
+
+void lang_init() {
+  for (int i = 0; i < LANG_COUNT; i++) {
+    for (int id = 0; id < IDS_COUNT; id++) {
+      string_table[i][id] = "";
+    }
+  }
+
+#define EN(id, s) string_table[LANG_EN][id] = s;
+#define JP(id, s) string_table[LANG_JP][id] = s;
+#define CN(id, s) string_table[LANG_CN][id] = s;
+#include "str.h"
+}
+
+void drawlang(int id, int a, int b) {
+  drawstring(a, b, string_table[lang][id]);
+}
+
 
 // プログラムは WinMain から始まります
 int main() {
+  lang_init();
   graphics_init();
   sound_init();
   input_init();
@@ -266,14 +306,12 @@ void rpaint() {
 
         //51
         setcolor(255, 255, 255);
-        if (ntype[t] == 100) {
+        if (ntype[t] == 100)
           drawstring(xx[0] / 100 + fma1, xx[1] / 100 + fmb, "51");
-        }
-
         if (ntype[t] == 101)
-          drawstring(xx[0] / 100 + fma1, xx[1] / 100 + fmb, "ゲームクリアー");
+          drawlang(xx[0] / 100 + fma1, xx[1] / 100 + fmb, IDS_2);
         if (ntype[t] == 102)
-          drawstring(xx[0] / 100 + fma1, xx[1] / 100 + fmb, "プレイしてくれてありがとー");
+          drawlang(xx[0] / 100 + fma1, xx[1] / 100 + fmb, IDS_3);
 
       }
     }   //t
@@ -878,32 +916,24 @@ void rpaint() {
     setc0();
     if (mmsgtm >= 1) {
       mmsgtm--;
-      xs[0] = "";
+      int strid = 0;
 
-      if (mmsgtype == 1) xs[0] = "お、おいしい!!";
-      if (mmsgtype == 2) xs[0] = "毒は無いが……";
-      if (mmsgtype == 3) xs[0] = "刺さった!!";
-      if (mmsgtype == 10) xs[0] = "食べるべきではなかった!!";
-      if (mmsgtype == 11) xs[0] = "俺は燃える男だ!!";
-      if (mmsgtype == 50) xs[0] = "体が……焼ける……";
-      if (mmsgtype == 51) xs[0] = "たーまやー!!";
-      if (mmsgtype == 52) xs[0] = "見事にオワタ";
-      if (mmsgtype == 53) xs[0] = "足が、足がぁ!!";
-      if (mmsgtype == 54) xs[0] = "流石は摂氏800度!!";
-      if (mmsgtype == 55) xs[0] = "溶岩と合体したい……";
-      //if (mmsgtype==56)xs[0]="";
+      if (mmsgtype == 1) strid = IDS_MSG_1;
+      if (mmsgtype == 2) strid = IDS_MSG_2;
+      if (mmsgtype == 3) strid = IDS_MSG_3;
+      if (mmsgtype == 10) strid = IDS_MSG_10;
+      if (mmsgtype == 11) strid = IDS_MSG_11;
+      if (mmsgtype == 50) strid = IDS_MSG_50;
+      if (mmsgtype == 51) strid = IDS_MSG_51;
+      if (mmsgtype == 52) strid = IDS_MSG_52;
+      if (mmsgtype == 53) strid = IDS_MSG_53;
+      if (mmsgtype == 54) strid = IDS_MSG_54;
+      if (mmsgtype == 55) strid = IDS_MSG_55;
 
-      //if (stagecolor<=1 || stagecolor==3)setc0();
-      //if (stagecolor==2)setc1();
-
-      //str(xs[0],(ma+mnobia+300)/100,mb/100);
-
-      setc0();
-      str(xs[0], (ma + mnobia + 300) / 100 - 1, mb / 100 - 1);
-      str(xs[0], (ma + mnobia + 300) / 100 + 1, mb / 100 + 1);
+      setfonttype(DX_FONTTYPE_EDGE);
       setc1();
-      str(xs[0], (ma + mnobia + 300) / 100, mb / 100);
-
+      stri(strid, (ma + mnobia + 300) / 100, mb / 100);
+      setfonttype(DX_FONTTYPE_NORMAL);
     }        //mmsgtm
 
 
@@ -913,78 +943,69 @@ void rpaint() {
       if (amsgtm[t] >= 1) {
         amsgtm[t]--;        //end();
 
-        xs[0] = "";
+        int strid = 0;
 
-        //if (amsgtype[t]==1001)xs[0]="";
-        if (amsgtype[t] == 1001) xs[0] = "ヤッフー!!";
-        if (amsgtype[t] == 1002) xs[0] = "え?俺勝っちゃったの?";
-        if (amsgtype[t] == 1003) xs[0] = "貴様の死に場所はここだ!";
-        if (amsgtype[t] == 1004) xs[0] = "二度と会う事もないだろう";
-        if (amsgtype[t] == 1005) xs[0] = "俺、最強!!";
-        if (amsgtype[t] == 1006) xs[0] = "一昨日来やがれ!!";
-        if (amsgtype[t] == 1007) xs[0] = "漢に後退の二文字は無い!!";
-        if (amsgtype[t] == 1008) xs[0] = "ハッハァ!!";
+        if (amsgtype[t] == 1001) strid = IDS_AMSG_1001;
+        if (amsgtype[t] == 1002) strid = IDS_AMSG_1002;
+        if (amsgtype[t] == 1003) strid = IDS_AMSG_1003;
+        if (amsgtype[t] == 1004) strid = IDS_AMSG_1004;
+        if (amsgtype[t] == 1005) strid = IDS_AMSG_1005;
+        if (amsgtype[t] == 1006) strid = IDS_AMSG_1006;
+        if (amsgtype[t] == 1007) strid = IDS_AMSG_1007;
+        if (amsgtype[t] == 1008) strid = IDS_AMSG_1008;
+                                                  
+        if (amsgtype[t] == 1011) strid = IDS_AMSG_1011;
+        if (amsgtype[t] == 1012) strid = IDS_AMSG_1012;
+        if (amsgtype[t] == 1013) strid = IDS_AMSG_1013;
+        if (amsgtype[t] == 1014) strid = IDS_AMSG_1014;
+        if (amsgtype[t] == 1015) strid = IDS_AMSG_1015;
+        if (amsgtype[t] == 1016) strid = IDS_AMSG_1016;
+        if (amsgtype[t] == 1017) strid = IDS_AMSG_1017;
+        if (amsgtype[t] == 1018) strid = IDS_AMSG_1018;
+                                                  
+        if (amsgtype[t] == 1021) strid = IDS_AMSG_1021;
+        if (amsgtype[t] == 1022) strid = IDS_AMSG_1022;
+        if (amsgtype[t] == 1023) strid = IDS_AMSG_1023;
+        if (amsgtype[t] == 1024) strid = IDS_AMSG_1024;
+        if (amsgtype[t] == 1025) strid = IDS_AMSG_1025;
+        if (amsgtype[t] == 1026) strid = IDS_AMSG_1026;
+        if (amsgtype[t] == 1027) strid = IDS_AMSG_1027;
+        if (amsgtype[t] == 1028) strid = IDS_AMSG_1028;
+                                                  
+        if (amsgtype[t] == 1031) strid = IDS_AMSG_1031;
+        if (amsgtype[t] == 1032) strid = IDS_AMSG_1032;
+        if (amsgtype[t] == 1033) strid = IDS_AMSG_1033;
+        if (amsgtype[t] == 1034) strid = IDS_AMSG_1034;
+        if (amsgtype[t] == 1035) strid = IDS_AMSG_1035;
+        if (amsgtype[t] == 1036) strid = IDS_AMSG_1036;
+        if (amsgtype[t] == 1037) strid = IDS_AMSG_1037;
+        if (amsgtype[t] == 1038) strid = IDS_AMSG_1038;
 
-        if (amsgtype[t] == 1011) xs[0] = "ヤッフー!!";
-        if (amsgtype[t] == 1012) xs[0] = "え?俺勝っちゃったの?";
-        if (amsgtype[t] == 1013) xs[0] = "貴様の死に場所はここだ!";
-        if (amsgtype[t] == 1014) xs[0] = "身の程知らずが……";
-        if (amsgtype[t] == 1015) xs[0] = "油断が死を招く";
-        if (amsgtype[t] == 1016) xs[0] = "おめでたい奴だ";
-        if (amsgtype[t] == 1017) xs[0] = "屑が!!";
-        if (amsgtype[t] == 1018) xs[0] = "無謀な……";
-
-        if (amsgtype[t] == 1021) xs[0] = "ヤッフー!!";
-        if (amsgtype[t] == 1022) xs[0] = "え?俺勝っちゃったの?";
-        if (amsgtype[t] == 1023) xs[0] = "二度と会う事もないだろう";
-        if (amsgtype[t] == 1024) xs[0] = "身の程知らずが……";
-        if (amsgtype[t] == 1025) xs[0] = "僕は……負けない!!";
-        if (amsgtype[t] == 1026) xs[0] = "貴様に見切れる筋は無い";
-        if (amsgtype[t] == 1027) xs[0] = "今死ね、すぐ死ね、骨まで砕けろ!!";
-        if (amsgtype[t] == 1028) xs[0] = "任務完了!!";
-
-        if (amsgtype[t] == 1031) xs[0] = "ヤッフー!!";
-        if (amsgtype[t] == 1032) xs[0] = "え?俺勝っちゃったの?";
-        if (amsgtype[t] == 1033) xs[0] = "貴様の死に場所はここだ!";
-        if (amsgtype[t] == 1034) xs[0] = "身の程知らずが……";
-        if (amsgtype[t] == 1035) xs[0] = "油断が死を招く";
-        if (amsgtype[t] == 1036) xs[0] = "おめでたい奴だ";
-        if (amsgtype[t] == 1037) xs[0] = "屑が!!";
-        if (amsgtype[t] == 1038) xs[0] = "無謀な……";
-
-        if (amsgtype[t] == 15) xs[0] = "鉄壁!!よって、無敵!!";
-        if (amsgtype[t] == 15) xs[0] = "丸腰で勝てるとでも?";
-        if (amsgtype[t] == 15) xs[0] = "パリイ!!";
-        if (amsgtype[t] == 18) xs[0] = "自業自得だ";
-        if (amsgtype[t] == 20) xs[0] = "Zzz";
-        if (amsgtype[t] == 21) xs[0] = "ク、クマー";
-        if (amsgtype[t] == 24) xs[0] = "?";
-        if (amsgtype[t] == 25) xs[0] = "食べるべきではなかった!!";
-        if (amsgtype[t] == 30) xs[0] = "うめぇ!!";
-        if (amsgtype[t] == 31) xs[0] = "ブロックを侮ったな?";
-        if (amsgtype[t] == 32) xs[0] = "シャキーン";
-
-        if (amsgtype[t] == 50) xs[0] = "波動砲!!";
-        if (amsgtype[t] == 85) xs[0] = "裏切られたとでも思ったか?";
-        if (amsgtype[t] == 86) xs[0] = "ポールアターック!!";
-
-
-
-        //if (stagecolor<=1 || stagecolor==3)setc0();
-        //if (stagecolor==2)setc1();
+        if (amsgtype[t] == 15) strid = IDS_AMSG_15;
+        if (amsgtype[t] == 16) strid = IDS_AMSG_16;
+        if (amsgtype[t] == 17) strid = IDS_AMSG_17;
+        if (amsgtype[t] == 18) strid = IDS_AMSG_18;
+        if (amsgtype[t] == 20) strid = IDS_AMSG_20;
+        if (amsgtype[t] == 21) strid = IDS_AMSG_21;
+        if (amsgtype[t] == 24) strid = IDS_AMSG_24;
+        if (amsgtype[t] == 25) strid = IDS_AMSG_25;
+        if (amsgtype[t] == 30) strid = IDS_AMSG_30;
+        if (amsgtype[t] == 31) strid = IDS_AMSG_31;
+        if (amsgtype[t] == 32) strid = IDS_AMSG_32;
+                                                
+        if (amsgtype[t] == 50) strid = IDS_AMSG_50;
+        if (amsgtype[t] == 85) strid = IDS_AMSG_85;
+        if (amsgtype[t] == 86) strid = IDS_AMSG_86;
 
         if (amsgtype[t] != 31) {
-          //str(xs[0],(aa[t]+anobia[t]+300-fx)/100,(ab[t]-fy)/100);
           xx[5] = (aa[t] + anobia[t] + 300 - fx) / 100; xx[6] = (ab[t] - fy) / 100;
         } else {
           xx[5] = (aa[t] + anobia[t] + 300 - fx) / 100; xx[6] = (ab[t] - fy - 800) / 100;
         }
 
-        //setc0();
-        //str(xs[0],xx[5]-1,xx[6]-1);str(xs[0],xx[5]+1,xx[6]+1);
         setfonttype(DX_FONTTYPE_EDGE);
         setc1();
-        str(xs[0], xx[5], xx[6]);
+        stri(strid, xx[5], xx[6]);
         setfonttype(DX_FONTTYPE_NORMAL);
 
 
@@ -1018,7 +1039,7 @@ void rpaint() {
     if (mainmsgtype >= 1) {
       setfont(20, 4);
       setcolor(255, 255, 255);
-      if (mainmsgtype == 1) {drawstring(126, 100, "WELCOME TO OWATA ZONE"); }
+      if (mainmsgtype == 1) {drawlang(126, 100, IDS_4); }
       if (mainmsgtype == 1) {for (t2 = 0; t2 <= 2; t2++) drawstring(88 + t2 * 143, 210, "1"); }
       setfont(20, 5);
     }        //mainmsgtype>=1
@@ -1041,7 +1062,7 @@ void rpaint() {
       char buff[128];
       setfonttype(DX_FONTTYPE_EDGE);
       setc1();
-      snprintf(buff, sizeof(buff), "SCORE: %d", score);
+      snprintf(buff, sizeof(buff), "%s: %d", string_table[lang][IDS_SCORE], score);
       drawstring(10, 5, buff);
 #ifdef TEST_MODE
       snprintf(buff, sizeof(buff), "st:%d-%d-%d mainproc:%d", sta, stb, stc, mainproc);
@@ -1056,26 +1077,26 @@ void rpaint() {
   if (mainproc == 2) {
 
     setcolor(255, 255, 255);
-    str("制作・プレイに関わった方々", 240 - 13 * 20 / 2, xx[12] / 100);
-    str("ステージ１　プレイ", 240 - 9 * 20 / 2, xx[13] / 100);
-    str("先輩　Ⅹ～Ｚ", 240 - 6 * 20 / 2, xx[14] / 100);
-    str("ステージ２　プレイ", 240 - 9 * 20 / 2, xx[15] / 100);
-    str("友人　willowlet ", 240 - 8 * 20 / 2, xx[16] / 100);
-    str("ステージ３　プレイ", 240 - 9 * 20 / 2, xx[17] / 100);
-    str("友人　willowlet ", 240 - 8 * 20 / 2, xx[18] / 100);
-    str("ステージ４　プレイ", 240 - 9 * 20 / 2, xx[19] / 100);
-    str("友人２　ann ", 240 - 6 * 20 / 2, xx[20] / 100);
-    str("ご協力", 240 - 3 * 20 / 2, xx[21] / 100);
-    str("Ｔ先輩", 240 - 3 * 20 / 2, xx[22] / 100);
-    str("Ｓ先輩", 240 - 3 * 20 / 2, xx[23] / 100);
-    str("動画技術提供", 240 - 6 * 20 / 2, xx[24] / 100);
-    str("Ｋ先輩", 240 - 3 * 20 / 2, xx[25] / 100);
-    str("動画キャプチャ・編集・エンコード", 240 - 16 * 20 / 2, xx[26] / 100);
-    str("willowlet ", 240 - 5 * 20 / 2, xx[27] / 100);
-    str("プログラム・描画・ネタ・動画編集", 240 - 16 * 20 / 2, xx[28] / 100);
-    str("ちく", 240 - 2 * 20 / 2, xx[29] / 100);
+    stri(IDS_STAFF_1, 240 - 13 * 20 / 2, xx[12] / 100);
+    stri(IDS_STAFF_2, 240 - 9 * 20 / 2, xx[13] / 100);
+    stri(IDS_STAFF_3, 240 - 6 * 20 / 2, xx[14] / 100);
+    stri(IDS_STAFF_4, 240 - 9 * 20 / 2, xx[15] / 100);
+    stri(IDS_STAFF_5, 240 - 8 * 20 / 2, xx[16] / 100);
+    stri(IDS_STAFF_6, 240 - 9 * 20 / 2, xx[17] / 100);
+    stri(IDS_STAFF_7, 240 - 8 * 20 / 2, xx[18] / 100);
+    stri(IDS_STAFF_8, 240 - 9 * 20 / 2, xx[19] / 100);
+    stri(IDS_STAFF_9, 240 - 6 * 20 / 2, xx[20] / 100);
+    stri(IDS_STAFF_10, 240 - 3 * 20 / 2, xx[21] / 100);
+    stri(IDS_STAFF_11, 240 - 3 * 20 / 2, xx[22] / 100);
+    stri(IDS_STAFF_12, 240 - 3 * 20 / 2, xx[23] / 100);
+    stri(IDS_STAFF_13, 240 - 6 * 20 / 2, xx[24] / 100);
+    stri(IDS_STAFF_14, 240 - 3 * 20 / 2, xx[25] / 100);
+    stri(IDS_STAFF_15, 240 - 16 * 20 / 2, xx[26] / 100);
+    stri(IDS_STAFF_16, 240 - 5 * 20 / 2, xx[27] / 100);
+    stri(IDS_STAFF_17, 240 - 16 * 20 / 2, xx[28] / 100);
+    stri(IDS_STAFF_18, 240 - 2 * 20 / 2, xx[29] / 100);
 
-    str("プレイしていただき　ありがとうございました～", 240 - 22 * 20 / 2, xx[30] / 100);
+    stri(IDS_STAFF_19, 240 - 22 * 20 / 2, xx[30] / 100);
   }
 
 
@@ -1117,7 +1138,7 @@ void rpaint() {
 
 
     setcolor(0, 0, 0);
-    str("Enterキーを押せ!!", 240 - 8 * 20 / 2, 250);
+    stri(IDS_START, 240 - 8 * 20 / 2, 250);
     
   } //if (mainproc==100)
 
@@ -3491,6 +3512,10 @@ void str(const char *x, int a, int b) {
   xx[2] = 4;
 }
 
+void stri(int id, int a, int b) {
+  str(string_table[lang][id], a, b);
+}
+
 //音楽再生
 
 void stagecls() {
@@ -5357,75 +5382,75 @@ void ttmsg() {
       setc1();
       //フォント
       setfont(20, 5);
-      txmsg("テスト　hoge", 0);
+      txmsg(IDS_TMSG_0, 0);
     }
 
     if (tmsg == 1) {
       setc1();
-      txmsg("", 0);
-      txmsg("ステージ 1 より", 0);
-      txmsg("特殊的なものが増えたので", 1);
-      txmsg("気をつけてくれよ～", 2);
-      txmsg("後、アイテムの一部を利用するかも…", 4);
-      txmsg("                       ちく より", 6);
+      txmsg(IDS_EMPTY, 0);
+      txmsg(IDS_TMSG_11, 0);
+      txmsg(IDS_TMSG_12, 1);
+      txmsg(IDS_TMSG_13, 2);
+      txmsg(IDS_TMSG_14, 4);
+      txmsg(IDS_TMSG_15, 6);
     }
 
     if (tmsg == 2) {
-      txmsg("            ？が必要です ", 3);
-      txmsg("                         m9(^Д^)", 6);
+      txmsg(IDS_TMSG_21, 3);
+      txmsg(IDS_TMSG_22, 6);
     }
 
 
     if (tmsg == 3) {
-      txmsg("   別にコインに意味ないけどね ", 3);
-      txmsg("                      (・ω・ )ﾉｼ", 6);
+      txmsg(IDS_TMSG_31, 3);
+      txmsg(IDS_TMSG_32, 6);
     }
 
     if (tmsg == 4) {
-      txmsg("この先に隠しブロックがあります ", 2);
-      txmsg("注意してください !!", 4);
+      txmsg(IDS_TMSG_41, 2);
+      txmsg(IDS_TMSG_42, 4);
     }
 
 
     if (tmsg == 5) {
-      txmsg("", 0);
-      txmsg(" 前回よりも難易度を下げましたので", 1);
-      txmsg(" 気楽にプレイしてください    ", 3);
-      txmsg("                       ちく より", 6);
+      txmsg(IDS_EMPTY, 0);
+      txmsg(IDS_TMSG_51, 1);
+      txmsg(IDS_TMSG_52, 3);
+      txmsg(IDS_TMSG_53, 6);
     }
 
     if (tmsg == 6) {
-      txmsg("", 0);
-      txmsg(" そこにいる敵のそばによると、      ", 1);
-      txmsg(" 自分と一緒にジャンプしてくれます。", 2);
-      txmsg("   可愛いですね。                  ", 3);
+      txmsg(IDS_EMPTY, 0);
+      txmsg(IDS_TMSG_61, 1);
+      txmsg(IDS_TMSG_62, 2);
+      txmsg(IDS_TMSG_63, 3);
     }
 
     if (tmsg == 7) {
-      txmsg("", 0);
-      txmsg(" あの敵は連れて来れましたか?、     ", 1);
-      txmsg(" 連れて来れなかった貴方は、        ", 2);
-      txmsg(" そこの落とし穴から Let's dive!    ", 3);
+      txmsg(IDS_EMPTY, 0);
+      txmsg(IDS_TMSG_71, 1);
+      txmsg(IDS_TMSG_72, 2);
+      txmsg(IDS_TMSG_73, 3);
     }
 
     if (tmsg == 8) {
-      txmsg("そんな容易に", 1);
-      txmsg("ヒントに頼るもんじゃないぜ", 2);
-      txmsg("ほら、さっさと次行きな!!", 3);
+      txmsg(IDS_TMSG_81, 1);
+      txmsg(IDS_TMSG_82, 2);
+      txmsg(IDS_TMSG_83, 3);
     }
 
     if (tmsg == 9) {
-      txmsg(" 正真正銘のファイナルステージ。    ", 1);
-      txmsg(" クリアすれば遂にエンディング!!    ", 2);
-      txmsg(" その土管から戻ってもいいんだぜ?   ", 3);
+      txmsg(IDS_TMSG_91, 1);
+      txmsg(IDS_TMSG_92, 2);
+      txmsg(IDS_TMSG_93, 3);
     }
 
     if (tmsg == 100) {
-      txmsg("え？私ですか？ ", 0);
-      txmsg("いやぁ、ただの通りすがりの", 2);
-      txmsg("ヒントブロックですよ～", 3);
-      txmsg("決して怪しいブロックじゃないですよ", 5);
-      txmsg("                          (…チッ)", 6);
+      txmsg(IDS_TMSG_1001, 0);
+      txmsg(IDS_TMSG_1002, 2);
+      txmsg(IDS_TMSG_1003, 3);
+      txmsg(IDS_TMSG_1004, 5);
+      txmsg(IDS_TMSG_1005, 6);
     }
 
 
@@ -5444,10 +5469,10 @@ void ttmsg() {
 
 } //ttmsg
 
-void txmsg(const char *x, int a) {
+void txmsg(int id, int a) {
   int xx = 6;
 
-  str(x, 60 + xx, 40 + xx + a * 24);
+  stri(id, 60 + xx, 40 + xx + a * 24);
 
 } //txmsg
 
