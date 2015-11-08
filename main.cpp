@@ -2,6 +2,7 @@
 #include <math.h>
 
 //#define TEST_MODE
+//#define DEBUG_LEVEL
 
 void loadg();
 
@@ -208,7 +209,6 @@ long stime;
 
 // language string def
 #define JP(id, s)  id,
-#define EN(id, s) 
 #define CN(id, s) 
 enum StringIDs {
   IDS_EMPTY,
@@ -218,7 +218,6 @@ enum StringIDs {
 enum LanguageID {
   LANG_JP,
   LANG_CN,
-  LANG_EN,
   LANG_COUNT,
 };
 
@@ -232,14 +231,17 @@ void lang_init() {
     }
   }
 
-#define EN(id, s) string_table[LANG_EN][id] = s;
 #define JP(id, s) string_table[LANG_JP][id] = s;
 #define CN(id, s) string_table[LANG_CN][id] = s;
 #include "str.h"
 }
 
-void drawlang(int id, int a, int b) {
+void drawlang(int a, int b, int id) {
   drawstring(a, b, string_table[lang][id]);
+}
+
+void drawlangc(int a, int b, int id) {
+  drawstringc(a, b, string_table[lang][id]);
 }
 
 
@@ -309,9 +311,9 @@ void rpaint() {
         if (ntype[t] == 100)
           drawstring(xx[0] / 100 + fma1, xx[1] / 100 + fmb, "51");
         if (ntype[t] == 101)
-          drawlang(xx[0] / 100 + fma1, xx[1] / 100 + fmb, IDS_2);
+          drawlangc(xx[0] / 100 + fma1, xx[1] / 100 + fmb, IDS_2);
         if (ntype[t] == 102)
-          drawlang(xx[0] / 100 + fma1, xx[1] / 100 + fmb, IDS_3);
+          drawlangc(xx[0] / 100 + fma1, xx[1] / 100 + fmb, IDS_3);
 
       }
     }   //t
@@ -630,6 +632,13 @@ void rpaint() {
 
         setmirror(0);
 
+#ifdef DEBUG_LEVEL
+        {
+          char buff[32];
+          snprintf(buff, sizeof(buff), "%d", atype[t]);
+          drawstring(xx[0] / 100, xx[1] / 100, buff);
+        }
+#endif
       }
     }
 
@@ -701,6 +710,13 @@ void rpaint() {
         //コイン
         if (ttype[t] == 800) {drawimage(grap[0][2], xx[0] / 100 + 2, xx[1] / 100 + 1); }
 
+#ifdef DEBUG_LEVEL
+        {
+          char buff[32];
+          snprintf(buff, sizeof(buff), "%d", ttype[t]);
+          drawstring(xx[0] / 100, xx[1] / 100, buff);
+        }
+#endif
         //if (stagecolor==1)t-=30;
       }
     }
@@ -1065,7 +1081,8 @@ void rpaint() {
       snprintf(buff, sizeof(buff), "%s: %d", string_table[lang][IDS_SCORE], score);
       drawstring(10, 5, buff);
 #ifdef TEST_MODE
-      snprintf(buff, sizeof(buff), "st:%d-%d-%d mainproc:%d", sta, stb, stc, mainproc);
+      snprintf(buff, sizeof(buff), "st:%d-%d-%d(%d) mainproc:%d", sta, stb, stc, tyuukan, mainproc);
+
       drawstring(10, 25, buff);
 #endif
       setfonttype(DX_FONTTYPE_NORMAL);
@@ -1077,26 +1094,25 @@ void rpaint() {
   if (mainproc == 2) {
 
     setcolor(255, 255, 255);
-    stri(IDS_STAFF_1, 240 - 13 * 20 / 2, xx[12] / 100);
-    stri(IDS_STAFF_2, 240 - 9 * 20 / 2, xx[13] / 100);
-    stri(IDS_STAFF_3, 240 - 6 * 20 / 2, xx[14] / 100);
-    stri(IDS_STAFF_4, 240 - 9 * 20 / 2, xx[15] / 100);
-    stri(IDS_STAFF_5, 240 - 8 * 20 / 2, xx[16] / 100);
-    stri(IDS_STAFF_6, 240 - 9 * 20 / 2, xx[17] / 100);
-    stri(IDS_STAFF_7, 240 - 8 * 20 / 2, xx[18] / 100);
-    stri(IDS_STAFF_8, 240 - 9 * 20 / 2, xx[19] / 100);
-    stri(IDS_STAFF_9, 240 - 6 * 20 / 2, xx[20] / 100);
-    stri(IDS_STAFF_10, 240 - 3 * 20 / 2, xx[21] / 100);
-    stri(IDS_STAFF_11, 240 - 3 * 20 / 2, xx[22] / 100);
-    stri(IDS_STAFF_12, 240 - 3 * 20 / 2, xx[23] / 100);
-    stri(IDS_STAFF_13, 240 - 6 * 20 / 2, xx[24] / 100);
-    stri(IDS_STAFF_14, 240 - 3 * 20 / 2, xx[25] / 100);
-    stri(IDS_STAFF_15, 240 - 16 * 20 / 2, xx[26] / 100);
-    stri(IDS_STAFF_16, 240 - 5 * 20 / 2, xx[27] / 100);
-    stri(IDS_STAFF_17, 240 - 16 * 20 / 2, xx[28] / 100);
-    stri(IDS_STAFF_18, 240 - 2 * 20 / 2, xx[29] / 100);
-
-    stri(IDS_STAFF_19, 240 - 22 * 20 / 2, xx[30] / 100);
+    drawlangc(240, xx[12] / 100, IDS_STAFF_1);
+    drawlangc(240, xx[13] / 100, IDS_STAFF_2);
+    drawlangc(240, xx[14] / 100, IDS_STAFF_3);
+    drawlangc(240, xx[15] / 100, IDS_STAFF_4);
+    drawlangc(240, xx[16] / 100, IDS_STAFF_5);
+    drawlangc(240, xx[17] / 100, IDS_STAFF_6);
+    drawlangc(240, xx[18] / 100, IDS_STAFF_7);
+    drawlangc(240, xx[19] / 100, IDS_STAFF_8);
+    drawlangc(240, xx[20] / 100, IDS_STAFF_9);
+    drawlangc(240, xx[21] / 100, IDS_STAFF_10);
+    drawlangc(240, xx[22] / 100, IDS_STAFF_11);
+    drawlangc(240, xx[23] / 100, IDS_STAFF_12);
+    drawlangc(240, xx[24] / 100, IDS_STAFF_13);
+    drawlangc(240, xx[25] / 100, IDS_STAFF_14);
+    drawlangc(240, xx[26] / 100, IDS_STAFF_15);
+    drawlangc(240, xx[27] / 100, IDS_STAFF_16);
+    drawlangc(240, xx[28] / 100, IDS_STAFF_17);
+    drawlangc(240, xx[29] / 100, IDS_STAFF_18);
+    drawlangc(240, xx[30] / 100, IDS_STAFF_19);
   }
 
 
@@ -1483,8 +1499,8 @@ void Mainprogram() {
         if (mtm == 200) {
           soundplay(17);
           if (mtype == 301) {
-            na[nco] = 117 * 29 * 100 - 1100; nb[nco] = 4 * 29 * 100; ntype[nco] = 101; nco++; if (nco >= nmax) nco = 0;
-            na[nco] = 115 * 29 * 100 - 1100; nb[nco] = 6 * 29 * 100; ntype[nco] = 102; nco++; if (nco >= nmax) nco = 0;
+            na[nco] = 121 * 29 * 100 - 1100; nb[nco] = 4 * 29 * 100; ntype[nco] = 101; nco++; if (nco >= nmax) nco = 0;
+            na[nco] = 121 * 29 * 100 - 1100; nb[nco] = 6 * 29 * 100; ntype[nco] = 102; nco++; if (nco >= nmax) nco = 0;
           } else {
             na[nco] = 157 * 29 * 100 - 1100; nb[nco] = 4 * 29 * 100; ntype[nco] = 101; nco++; if (nco >= nmax) nco = 0;
             na[nco] = 155 * 29 * 100 - 1100; nb[nco] = 6 * 29 * 100; ntype[nco] = 102; nco++; if (nco >= nmax) nco = 0;
@@ -3348,9 +3364,6 @@ void Mainprogram() {
     maintm++; xx[0] = 0;
     if (maintm <= 10) {maintm = 11; sta = 1; stb = 1; stc = 0; over = 0; }
 
-#ifdef TEST_MODE
-    {sta = 1; stb = 3; stc = 0; }
-#endif
     /*
     if (input_keydown(KEY_INPUT_1) == 1) {sta = 1; stb = 1; stc = 0; }
     if (input_keydown(KEY_INPUT_2) == 1) {sta = 1; stb = 2; stc = 0; }
@@ -3375,6 +3388,10 @@ void Mainprogram() {
       nokori = 2;
 
       fast = 0; trap = 0; tyuukan = 0;
+
+#ifdef DEBUG_LEVEL
+      {sta = 2; stb = 4; stc = 2; tyuukan = 1; }
+#endif
     }
 
   }    //100
@@ -5377,16 +5394,13 @@ void ttmsg() {
   if (tmsgtype == 2) {
     //フォント
     setfont(20, 5);
+    setc1();
 
     if (tmsg == 0) {
-      setc1();
-      //フォント
-      setfont(20, 5);
       txmsg(IDS_TMSG_0, 0);
     }
 
     if (tmsg == 1) {
-      setc1();
       txmsg(IDS_EMPTY, 0);
       txmsg(IDS_TMSG_11, 0);
       txmsg(IDS_TMSG_12, 1);

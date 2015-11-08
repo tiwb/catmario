@@ -45,7 +45,8 @@ extern "C" {
 
   void setfont(int x, int y);
   int setfonttype(int FontType);
-  int drawstring(int x, int y, const char *String);
+  int drawstring(int x, int y, const char *str);
+  int drawstringc(int x, int y, const char *str);
 
   void sound_init();
   void soundplay(int x);

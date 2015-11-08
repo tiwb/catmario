@@ -148,7 +148,24 @@ var LibraryDLM = {
             gfxContext.fillText(str, x + 1, y);
 
         }
+        gfxContext.textAlign = 'left';
         gfxContext.fillStyle = DLM.color;
+        gfxContext.fillText(str, x, y);
+    },
+
+    drawstringc: function(x, y, str) {
+        str = UTF8ToString(str);
+        gfxContext.font = DLM.fontSize + 'px sans-serif';
+        if (DLM.fontType == 1) {
+            gfxContext.fillStyle = 'black';
+            gfxContext.fillText(str, x, y - 1);
+            gfxContext.fillText(str, x, y + 1);
+            gfxContext.fillText(str, x - 1, y);
+            gfxContext.fillText(str, x + 1, y);
+
+        }
+        gfxContext.fillStyle = DLM.color;
+        gfxContext.textAlign = 'center';
         gfxContext.fillText(str, x, y);
     },
 
