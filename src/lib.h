@@ -5,8 +5,8 @@ typedef uint8_t byte;
 #define TRUE 1
 #define FALSE 0
 
-#define DX_FONTTYPE_EDGE                            (1)             // ¥¨¥Ã¥¸¤Ä¤­¥Õ¥©¥ó¥È
-#define DX_FONTTYPE_NORMAL                          (0)             // ¥Î©`¥Þ¥ë¥Õ¥©¥ó¥È
+#define DX_FONTTYPE_EDGE                            (1)             // ï¿½ï¿½ï¿½Ã¥ï¿½ï¿½Ä¤ï¿½ï¿½Õ¥ï¿½ï¿½ï¿½ï¿½ï¿½
+#define DX_FONTTYPE_NORMAL                          (0)             // ï¿½Î©`ï¿½Þ¥ï¿½ï¿½Õ¥ï¿½ï¿½ï¿½ï¿½ï¿½
 
 #define PAD_INPUT_LEFT                              (0x01)
 #define PAD_INPUT_RIGHT                             (0x02)
@@ -17,16 +17,27 @@ typedef uint8_t byte;
 #define PAD_INPUT_ACTION                            (PAD_INPUT_JUMP | PAD_INPUT_CLICK)
 
 extern "C" {
+  void dlm_init();
+  void dlm_frame();
+  void dlm_score(int type, int score);
+  void dlm_start();
+  void dlm_reset();
+  void dlm_title();
+  int dlm_mainproc();
+
+
   void input_init();
   int input_waitkey(void);
   int input_get();
 
-  int  graphics_init();
+  void graphics_init();
   void begindraw();
   void enddraw();
+  void drawpad();
+  int getscreenheight();
 
   int loadimage(const char *FileName);
-  int subimage(int SrcX, int SrcY, int Width, int Height, int SrcGraphHandle);
+  int subimage(int x, int y, int w, int h, int imgid);
   void getimagesize(int GrHandle, int *SizeXBuf, int *SizeYBuf);
 
   void clearscreen();
@@ -61,5 +72,4 @@ extern "C" {
 
   void adshow();
   void adhide();
-  void updatescore(int score, int life);
 }

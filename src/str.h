@@ -1,9 +1,12 @@
-﻿#ifndef JP
+#ifndef JP
 #define JP(id, str)
 #endif
 #ifndef CN
 #define CN(id, str)
 #endif
+
+JP(IDS_1, "51")
+CN(IDS_1, "51")
 
 JP(IDS_2, "ゲームクリアー")
 CN(IDS_2, "恭喜您通关了")
@@ -12,10 +15,16 @@ JP(IDS_3, "プレイしてくれてありがとー")
 CN(IDS_3, "感谢您体验我们的游戏")
 
 JP(IDS_4, "WELCOME TO OWATA ZONE")
-CN(IDS_4, "WELCOME TO OWATA ZONE")
+CN(IDS_4, "貌似发现了隐藏的关卡")
 
 JP(IDS_SCORE, "SCORE")
-CN(IDS_SCORE, "SCORE")
+CN(IDS_SCORE, "分数")
+
+JP(IDS_LEVEL, "LEVEL %d-%d")
+CN(IDS_LEVEL, "关卡 %d-%d")
+
+JP(IDS_HISCORE, "HISCORE")
+CN(IDS_HISCORE, "最高分")
 
 // 碰到云时
 JP(IDS_MSG_1, "お、おいしい!!")
@@ -264,6 +273,9 @@ CN(IDS_STAFF_19, "感谢您的参与～")
 JP(IDS_START, "Enterキーを押せ!!")
 CN(IDS_START, "按任意键开始游戏!!")
 
+JP(IDS_STAGE, "Stage %d-%d")
+CN(IDS_STAGE, "第 %d-%d 关")
+
 JP(IDS_TMSG_0, "テスト　hoge")
 CN(IDS_TMSG_0, "Test hoge")
 
@@ -272,11 +284,11 @@ JP(IDS_TMSG_12, "特殊的なものが増えたので")
 JP(IDS_TMSG_13, "気をつけてくれよ～")
 JP(IDS_TMSG_14, "後、アイテムの一部を利用するかも…")
 JP(IDS_TMSG_15, "                       ちく より")
-CN(IDS_TMSG_11, "从这一关开始")
-CN(IDS_TMSG_12, "因为特殊的东西增加了")
-CN(IDS_TMSG_13, "你要当心一点～")
-CN(IDS_TMSG_14, "稍后或许可以用道具…")
-CN(IDS_TMSG_15, "                      作者 ちく")
+CN(IDS_TMSG_11, "居然可以通过第一关")
+CN(IDS_TMSG_12, "看来有点实力啊")
+CN(IDS_TMSG_13, "接下来要当心一点～")
+CN(IDS_TMSG_14, "因为真正的挑战才刚刚开始...")
+CN(IDS_TMSG_15, "                      哇哈哈哈哈")
 
 JP(IDS_TMSG_21, "            ？が必要です ")
 JP(IDS_TMSG_22, "                         m9(^Д^)")
@@ -285,7 +297,7 @@ CN(IDS_TMSG_22, "                         m9(^Д^)")
 
 JP(IDS_TMSG_31, "   別にコインに意味ないけどね ")
 JP(IDS_TMSG_32, "                      (・ω・ )ﾉｼ")
-CN(IDS_TMSG_31, "   金币什么的毫无意义 ")
+CN(IDS_TMSG_31, "   吃再多的金币，也不会增加分数.. ")
 CN(IDS_TMSG_32, "                      (・ω・ )ﾉｼ")
 
 JP(IDS_TMSG_41, "この先に隠しブロックがあります ")
@@ -298,7 +310,7 @@ JP(IDS_TMSG_52, " 気楽にプレイしてください")
 JP(IDS_TMSG_53, "                       ちく より")
 CN(IDS_TMSG_51, " 比上一关玩难度更低了")
 CN(IDS_TMSG_52, " 请随便玩玩吧")
-CN(IDS_TMSG_53, "                       作者 ちく")
+CN(IDS_TMSG_53, "                       作者")
 
 JP(IDS_TMSG_61, " そこにいる敵のそばによると、      ")
 JP(IDS_TMSG_62, " 自分と一緒にジャンプしてくれます。")
@@ -337,7 +349,7 @@ CN(IDS_TMSG_1001, "诶?是我吗? ")
 CN(IDS_TMSG_1002, "不是的, 我只是一个路过的提示框")
 CN(IDS_TMSG_1003, "不是很奇怪的方块～")
 CN(IDS_TMSG_1004, "")
-CN(IDS_TMSG_1005, "                          (…チッ)")
+CN(IDS_TMSG_1005, "                          ")
 
 #undef CN
 #undef JP

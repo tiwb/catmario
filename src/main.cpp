@@ -3,11 +3,25 @@
 
 //#define TEST_MODE
 //#define DEBUG_LEVEL
+//#define SHOW_TRAP
+//#define RAND_STAGE
 
-void loadg();
+#if !defined(TEST_MODE)
+#define printf(...) {};
+#endif
 
 static inline int abs(int v) {
   return v < 0 ? -v : v;
+}
+
+static inline int max(int a, int b) {
+  return a > b ? a : b;
+}
+
+static inline int clamp(int v, int a, int b) {
+  if (v < a) v = a;
+  if (v > b) v = b;
+  return v;
 }
 
 //プログラム中
@@ -17,13 +31,8 @@ int mainproc = 100, maintm = 0;
 
 //ステージ
 int stagecolor = 0;
-int sta = 1, stb = 4, stc = 0;
-
-//クイック
-int fast = 1;
-
-//トラップ表示
-int trap = 1;
+int sta = 1, stb = 1, stc = 0;
+int stageid = 0;
 
 //中間ゲート
 int tyuukan = 0;
@@ -35,12 +44,9 @@ int ending = 0;
 
 //ステージ読み込みループ(いじらない)
 int stagerr, stagepoint;
-//オーバーフローさせる
-int over = 0;
 
 //ステージスイッチ
 int stageonoff = 0;
-
 
 //メインプログラム
 void Mainprogram();
@@ -50,6 +56,29 @@ int maint;
 byte paused = 0;
 byte waitpause = 0;
 int score = 0;
+int scorepos = 0;
+int nopause = 0;
+
+struct savestage {
+  int life;
+  int time;
+  int pos;
+};
+
+struct savedata {
+  int version;
+  char sta;
+  char stb;
+  char stc;
+  char std;
+  int life;
+  int time;
+  int score;
+  savestage stage[14];
+  unsigned int check;
+};
+
+savedata save = { 0 };
 
 //描画
 int grap[161][8], mgrap[51];
@@ -100,7 +129,7 @@ int sgtype[smax];
 //プレイヤー
 int mainmsgtype;
 int ma, mb, mnobia, mnobib, mhp;
-int mc, md, macttype, atkon, atktm, mactsok, msstar, nokori = 2, mactp, mact;
+int mc, md, macttype, atkon, atktm, mactsok, msstar, mactp, mact;
 
 int mtype, mxtype, mtm, mzz;
 int mzimen, mrzimen, mkasok, mmuki, mmukitm, mjumptm, mkeytm, mcleartm;
@@ -209,7 +238,7 @@ long stime;
 
 // language string def
 #define JP(id, s)  id,
-#define CN(id, s) 
+#define CN(id, s)
 enum StringIDs {
   IDS_EMPTY,
 #include "str.h"
@@ -231,37 +260,419 @@ void lang_init() {
     }
   }
 
-#define JP(id, s) string_table[LANG_JP][id] = s;
+#define JP(id, s)
 #define CN(id, s) string_table[LANG_CN][id] = s;
 #include "str.h"
 }
 
 void drawlang(int a, int b, int id) {
-  drawstring(a, b, string_table[lang][id]);
+  drawstring(a, b, string_table[LANG_CN][id]);
 }
 
 void drawlangc(int a, int b, int id) {
-  drawstringc(a, b, string_table[lang][id]);
+  drawstringc(a, b, string_table[LANG_CN][id]);
 }
 
+const char* base64char = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static int base64_encode(const unsigned char *bindata, char *base64, int binlength) {
+  int i, j;
+  unsigned char current;
 
-// プログラムは WinMain から始まります
-int main() {
-  lang_init();
-  graphics_init();
-  sound_init();
-  input_init();
+  for (i = 0, j = 0; i < binlength; i += 3) {
+    current = (bindata[i] >> 2);
+    current &= (unsigned char)0x3F;
+    base64[j++] = base64char[(int)current];
 
-  //全ロード
-  loadg();
+    current = ((unsigned char)(bindata[i] << 4)) & ((unsigned char)0x30);
+    if (i + 1 >= binlength) {
+      base64[j++] = base64char[(int)current];
+      base64[j++] = '=';
+      base64[j++] = '=';
+      break;
+    }
+    current |= ((unsigned char)(bindata[i + 1] >> 4)) & ((unsigned char)0x0F);
+    base64[j++] = base64char[(int)current];
 
-  // Main loop
-  emscripten_set_main_loop(Mainprogram, 0, 1);
+    current = ((unsigned char)(bindata[i + 1] << 2)) & ((unsigned char)0x3C);
+    if (i + 2 >= binlength) {
+      base64[j++] = base64char[(int)current];
+      base64[j++] = '=';
+      break;
+    }
+    current |= ((unsigned char)(bindata[i + 2] >> 6)) & ((unsigned char)0x03);
+    base64[j++] = base64char[(int)current];
 
-  // ソフトの終了
+    current = ((unsigned char)bindata[i + 2]) & ((unsigned char)0x3F);
+    base64[j++] = base64char[(int)current];
+  }
+  base64[j] = '\0';
+  return j;
+}
+
+static int base64_decode(const char * base64, unsigned char * bindata, int len) {
+  int i, j;
+  unsigned char k;
+  unsigned char temp[4] = { 0xff, 0xff, 0xff, 0xff };
+  for (i = 0, j = 0; base64[i] != '\0'; i += 4) {
+    for (k = 0; k < 64; k++) {
+      if (base64char[k] == base64[i])
+        temp[0] = k;
+    }
+    for (k = 0; k < 64; k++) {
+      if (base64char[k] == base64[i + 1])
+        temp[1] = k;
+    }
+    for (k = 0; k < 64; k++) {
+      if (base64char[k] == base64[i + 2])
+        temp[2] = k;
+    }
+    for (k = 0; k < 64; k++) {
+      if (base64char[k] == base64[i + 3])
+        temp[3] = k;
+    }
+
+    if (j >= len) break;
+    bindata[j++] = ((unsigned char)(((unsigned char)(temp[0] << 2)) & 0xFC)) |
+      ((unsigned char)((unsigned char)(temp[1] >> 4) & 0x03));
+    if (base64[i + 2] == '=')
+      break;
+
+    if (j >= len) break;
+    bindata[j++] = ((unsigned char)(((unsigned char)(temp[1] << 4)) & 0xF0)) |
+      ((unsigned char)((unsigned char)(temp[2] >> 2) & 0x0F));
+    if (base64[i + 3] == '=')
+      break;
+
+    if (j >= len) break;
+    bindata[j++] = ((unsigned char)(((unsigned char)(temp[2] << 6)) & 0xF0)) |
+      ((unsigned char)(temp[3] & 0x3F));
+  }
+  return j;
+}
+
+static unsigned int crc32(unsigned int crc, unsigned char *data, int len) {
+  unsigned int POLYNOMIAL = 0xEDB88320;
+  unsigned int table[256];
+
+  int i, j;
+  for (i = 0; i < 256; i++)
+    for (j = 0, table[i] = i; j < 8; j++)
+      table[i] = (table[i] >> 1) ^ ((table[i] & 1) ? POLYNOMIAL : 0);
+
+  crc = ~crc;
+  for (i = 0; i < len; i++)
+    crc = (crc >> 8) ^ table[(crc ^ data[i]) & 0xff];
+  return ~crc;
+}
+
+static void encode(unsigned char* data, int len) {
+  unsigned int seed = 'tiwb';
+  for (int i = 0; i < len; i++) {
+    data[i] ^= seed;
+    seed = seed * 1103515245 + 12345;
+  }
+}
+
+static int getstageid() {
+  if (sta == 1 && stb == 1 && stc == 0) return 1;
+
+  if (sta == 1 && stb == 2 && stc == 0) return 2;
+  if (sta == 1 && stb == 2 && stc == 1) return 3;
+  if (sta == 1 && stb == 2 && stc == 2) return 4;
+
+  if (sta == 1 && stb == 3 && stc == 0) return 5;
+  if (sta == 1 && stb == 3 && stc == 5) return 5;
+  if (sta == 1 && stb == 4 && stc == 0) return 6;
+
+  if (sta == 2 && stb == 1 && stc == 0) return 7;
+
+  if (sta == 2 && stb == 2 && stc == 0) return 8;
+  if (sta == 2 && stb == 2 && stc == 1) return 9;
+  if (sta == 2 && stb == 2 && stc == 2) return 10;
+
+  if (sta == 2 && stb == 3 && stc == 0) return 11;
+
+  if (sta == 2 && stb == 4 && stc == 0) return 12;
+  if (sta == 2 && stb == 4 && stc == 1) return 13;
+  if (sta == 2 && stb == 4 && stc == 2) return 14;
+
   return 0;
 }
 
+void dlm_save() {
+  save.version = ('S' << 24) | ('J' << 16) | ('M' << 8) | 0x02;
+  save.sta = sta;
+  save.stb = stb;
+  save.stc = stc;
+  save.std = tyuukan;
+  save.check = crc32('TIWB', (unsigned char*)&save, sizeof(save) - 4);
+  savedata d = save;
+  encode((unsigned char*)&d, sizeof(d));
+  char buf[sizeof(d) * 2];
+  base64_encode((unsigned char*)&d, buf, sizeof(d));
+  EM_ASM_({
+    localStorage.data = UTF8ToString($0);
+  }, buf);
+}
+
+void dlm_load() {
+  char buf[sizeof(save) * 2];
+  EM_ASM_({
+    try {
+      stringToUTF8(localStorage.data, $0, $1)
+    }
+    catch (err) {}
+  }, buf, sizeof(buf));
+  base64_decode(buf, (unsigned char*)&save, sizeof(save));
+  encode((unsigned char*)&save, sizeof(save));
+  int saveChekc = save.version & 0xffffff00;
+  int versionNum = save.version & 0xff;
+  if (versionNum == 2 && save.check == crc32('TIWB', (unsigned char*)&save, sizeof(save) - 4)) {
+    sta = save.sta;
+    stb = save.stb;
+    stc = save.stc;
+    tyuukan = save.std;
+    zxon = 0;
+  }
+  else {
+    dlm_reset();
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
+void dlm_reset() {
+  sta = 1;
+  stb = 1;
+  stc = 0;
+  tyuukan = 0;
+  zxon = 0;
+  for (int i = 0; i < sizeof(save); i++) {
+    ((char*)&save)[i] = 0;
+  }
+  dlm_save();
+}
+
+int dlm_updatescore(int stage) {
+  int sc = 0;
+  static const int poslimit[14] = {
+    37400, 4500, 37400, 9300, 41700, 45200, 31900, 4500, 38000, 
+    9600, 35400, 10100, 4400, 33200,
+  };
+
+  printf("------------------\n");
+  for (int i = 0; i < stage; i++) {
+    sc += clamp(save.stage[i].pos, 0, poslimit[i]);
+    sc += clamp(10000 - save.stage[i].life * 100, 0, 10000);
+    sc += clamp(10000 - save.stage[i].time, 0, 10000);
+    printf("stage: %d  pos:%d  time:%d   life:%d\n", i, 
+           save.stage[i].pos,
+           save.stage[i].time,
+           save.stage[i].life);
+  }
+  printf("total score:%d\n", sc);
+  return sc;
+}
+
+void dlm_stagestart() {
+  stageid = getstageid();
+  save.time = 0;
+  save.score = dlm_updatescore(stageid - 1);
+  score = save.score;
+}
+
+void dlm_checkpoint() {
+  if (stageid > 0) {
+    save.stage[stageid - 1].time += save.time;
+    save.time = 0;
+  }
+}
+
+void dlm_stageclear() {
+  if (stageid > 0) {
+    save.stage[stageid - 1].time += save.time;
+    save.stage[stageid - 1].pos = scorepos / 1000 * 100;
+    save.time = 0;
+    save.score = dlm_updatescore(stageid);
+    score = save.score;
+    stageid = 0;
+  }
+}
+
+void dlm_killed() {
+  save.life++;
+  if (stageid > 0) {
+    save.stage[stageid - 1].life++;
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
+void dlm_start() {
+  mainproc = 10;
+  zxon = 0;
+  maintm = 0;
+  nopause = 1;
+  soundplay(0);
+
+#ifdef DEBUG_LEVEL
+  {sta = 1; stb = 2; stc = 0; tyuukan = 1; }
+#endif
+}
+
+EMSCRIPTEN_KEEPALIVE
+int dlm_mainproc() {
+  return mainproc;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void dlm_title() {
+  mainproc = 100;
+  maintm = 0;
+  paused = 0;
+  bgmstop();
+}
+
+EMSCRIPTEN_KEEPALIVE
+void dlm_init(void) {
+  dlm_load();
+  input_init();
+  graphics_init();
+  sound_init();
+  lang_init();
+
+  for (t = 0; t < 7; t++) {
+    mgrap[t] = 0;
+  }
+
+  //画像読み込み
+
+  //プレイヤー
+  mgrap[0] = loadimage("res/player.png");
+  //ブロック
+  mgrap[1] = loadimage("res/brock.png");
+  //アイテム
+  mgrap[2] = loadimage("res/item.png");
+  //敵
+  mgrap[3] = loadimage("res/teki.png");
+  //背景
+  mgrap[4] = loadimage("res/haikei.png");
+  //ブロック2
+  mgrap[5] = loadimage("res/brock2.png");
+  //おまけ
+  mgrap[6] = loadimage("res/omake.png");
+  //おまけ2
+  mgrap[7] = loadimage("res/omake2.png");
+  //タイトル
+  //mgrap[30] = loadimage("res/syobon3.png");
+
+
+  //プレイヤー読み込み
+  grap[40][0] = subimage(0, 0, 30, 36, mgrap[0]);
+  grap[0][0] = subimage(31 * 4, 0, 30, 36, mgrap[0]);
+  grap[1][0] = subimage(31 * 1, 0, 30, 36, mgrap[0]);
+  grap[2][0] = subimage(31 * 2, 0, 30, 36, mgrap[0]);
+  grap[3][0] = subimage(31 * 3, 0, 30, 36, mgrap[0]);
+  grap[41][0] = subimage(50, 0, 51, 73, mgrap[6]);
+
+  //ブロック読み込み
+  for (t = 0; t <= 6; t++) {
+    grap[t][1] = subimage(33 * t, 0, 30, 30, mgrap[1]);
+    grap[t + 30][1] = subimage(33 * t, 33, 30, 30, mgrap[1]);
+    grap[t + 60][1] = subimage(33 * t, 66, 30, 30, mgrap[1]);
+  }
+  grap[8][1] = subimage(33 * 7, 0, 30, 30, mgrap[1]);
+  grap[16][1] = subimage(33 * 6, 0, 24, 27, mgrap[2]);
+  grap[10][1] = subimage(33 * 9, 0, 30, 30, mgrap[1]);
+  grap[40][1] = subimage(33 * 9, 33, 30, 30, mgrap[1]);
+  grap[70][1] = subimage(33 * 9, 66, 30, 30, mgrap[1]);
+
+  //ブロック読み込み2
+  for (t = 0; t <= 6; t++) {
+    grap[t][5] = subimage(33 * t, 0, 30, 30, mgrap[5]);
+  }
+  grap[10][5] = subimage(33 * 1, 33, 30, 30, mgrap[5]);
+  grap[11][5] = subimage(33 * 2, 33, 30, 30, mgrap[5]);
+  grap[12][5] = subimage(33 * 0, 66, 30, 30, mgrap[5]);
+  grap[13][5] = subimage(33 * 1, 66, 30, 30, mgrap[5]);
+  grap[14][5] = subimage(33 * 2, 66, 30, 30, mgrap[5]);
+
+  //アイテム読み込み
+  for (t = 0; t <= 5; t++) {
+    grap[t][2] = subimage(33 * t, 0, 30, 30, mgrap[2]);
+  }
+
+  //敵キャラ読み込み
+  grap[0][3] = subimage(33 * 0, 0, 30, 30, mgrap[3]);
+  grap[1][3] = subimage(33 * 1, 0, 30, 43, mgrap[3]);
+  grap[2][3] = subimage(33 * 2, 0, 30, 30, mgrap[3]);
+  grap[3][3] = subimage(33 * 3, 0, 30, 44, mgrap[3]);
+  grap[4][3] = subimage(33 * 4, 0, 33, 35, mgrap[3]);
+  grap[5][3] = subimage(0, 0, 37, 55, mgrap[7]);
+  grap[6][3] = subimage(38 * 2, 0, 36, 50, mgrap[7]);
+  grap[150][3] = subimage(38 * 2 + 37 * 2, 0, 36, 50, mgrap[7]);
+  grap[7][3] = subimage(33 * 6 + 1, 0, 32, 32, mgrap[3]);
+  grap[8][3] = subimage(38 * 2 + 37 * 3, 0, 37, 47, mgrap[7]);
+  grap[151][3] = subimage(38 * 3 + 37 * 3, 0, 37, 47, mgrap[7]);
+  grap[9][3] = subimage(33 * 7 + 1, 0, 26, 30, mgrap[3]);
+  grap[10][3] = subimage(214, 0, 46, 16, mgrap[6]);
+
+  //モララー
+  grap[30][3] = subimage(0, 56, 30, 36, mgrap[7]);
+  grap[155][3] = subimage(31 * 3, 56, 30, 36, mgrap[7]);
+  grap[31][3] = subimage(50, 74, 49, 79, mgrap[6]);
+
+
+  grap[80][3] = subimage(151, 31, 70, 40, mgrap[4]);
+  grap[81][3] = subimage(151, 72, 70, 40, mgrap[4]);
+  grap[130][3] = subimage(151 + 71, 72, 70, 40, mgrap[4]);
+  grap[82][3] = subimage(33 * 1, 0, 30, 30, mgrap[5]);
+  grap[83][3] = subimage(0, 0, 49, 48, mgrap[6]);
+  grap[84][3] = subimage(33 * 5 + 1, 0, 30, 30, mgrap[3]);
+  grap[86][3] = subimage(102, 66, 49, 59, mgrap[6]);
+  grap[152][3] = subimage(152, 66, 49, 59, mgrap[6]);
+
+  grap[90][3] = subimage(102, 0, 64, 63, mgrap[6]);
+
+  grap[100][3] = subimage(33 * 1, 0, 30, 30, mgrap[2]);
+  grap[101][3] = subimage(33 * 7, 0, 30, 30, mgrap[2]);
+  grap[102][3] = subimage(33 * 3, 0, 30, 30, mgrap[2]);
+
+  //grap[104][3] = subimage( 33*2, 0, 30, 30, mgrap[5]) ;
+  grap[105][3] = subimage(33 * 5, 0, 30, 30, mgrap[2]);
+  grap[110][3] = subimage(33 * 4, 0, 30, 30, mgrap[2]);
+
+
+  //背景読み込み
+  grap[0][4] = subimage(0, 0, 150, 90, mgrap[4]);
+  grap[1][4] = subimage(151, 0, 65, 29, mgrap[4]);
+  grap[2][4] = subimage(151, 31, 70, 40, mgrap[4]);
+  grap[3][4] = subimage(0, 91, 100, 90, mgrap[4]);
+  grap[4][4] = subimage(151, 113, 51, 29, mgrap[4]);
+  grap[5][4] = subimage(222, 0, 28, 60, mgrap[4]);
+  grap[6][4] = subimage(151, 143, 90, 40, mgrap[4]);
+
+  //中間フラグ
+  grap[20][4] = subimage(40, 182, 40, 60, mgrap[4]);
+
+
+  //グラ
+  grap[0][5] = subimage(167, 0, 45, 45, mgrap[6]);
+
+
+  //敵サイズ収得
+  //int GrHandle=0;
+  for (t = 0; t <= 140; t++) {
+    getimagesize(grap[t][3], &anx[t], &any[t]);
+    anx[t] *= 100; any[t] *= 100;
+  }
+  anx[79] = 120 * 100; any[79] = 15 * 100;
+  anx[85] = 25 * 100; any[85] = 30 * 10 * 100;
+
+  //背景サイズ収得
+  for (t = 0; t < 40; t++) {
+    getimagesize(grap[t][4], &ne[t], &nf[t]);
+    //ne[t]*=100;nf[t]*=100;
+  }
+}
 
 
 //メイン描画
@@ -309,12 +720,11 @@ void rpaint() {
         //51
         setcolor(255, 255, 255);
         if (ntype[t] == 100)
-          drawstring(xx[0] / 100 + fma1, xx[1] / 100 + fmb, "51");
+          drawlang(xx[0] / 100 + fma1, xx[1] / 100 + fmb, IDS_1);
         if (ntype[t] == 101)
           drawlangc(xx[0] / 100 + fma1, xx[1] / 100 + fmb, IDS_2);
         if (ntype[t] == 102)
           drawlangc(xx[0] / 100 + fma1, xx[1] / 100 + fmb, IDS_3);
-
       }
     }   //t
 
@@ -393,19 +803,20 @@ void rpaint() {
     for (t = 0; t < srmax; t++) {
       xx[0] = sra[t] - fx; xx[1] = srb[t] - fy;
       if (xx[0] + src[t] >= -10 && xx[1] <= fxmax + 12100 && src[t] / 100 >= 1) {
-        xx[2] = 14; if (srsp[t] == 1) {xx[2] = 12; }
+        xx[2] = 14; if (srsp[t] == 1) { xx[2] = 12; }
 
         if (srsp[t] <= 9 || srsp[t] >= 20) {
           setcolor(220, 220, 0);
-          if (srsp[t] == 2) {setcolor(0, 220, 0); }
-          if (srsp[t] == 21) {setcolor(180, 180, 180); }
+          if (srsp[t] == 2) { setcolor(0, 220, 0); }
+          if (srsp[t] == 21) { setcolor(180, 180, 180); }
           fillrect((sra[t] - fx) / 100, (srb[t] - fy) / 100, src[t] / 100, xx[2]);
 
           setcolor(180, 180, 0);
-          if (srsp[t] == 2) {setcolor(0, 180, 0); }
-          if (srsp[t] == 21) {setcolor(150, 150, 150); }
+          if (srsp[t] == 2) { setcolor(0, 180, 0); }
+          if (srsp[t] == 21) { setcolor(150, 150, 150); }
           drawrect((sra[t] - fx) / 100, (srb[t] - fy) / 100, src[t] / 100, xx[2]);
-        } else if (srsp[t] <= 14) {
+        }
+        else if (srsp[t] <= 14) {
           if (src[t] >= 5000) {
             setcolor(0, 200, 0);
             fillrect((sra[t] - fx) / 100, (srb[t] - fy) / 100, src[t] / 100, 30);
@@ -478,7 +889,7 @@ void rpaint() {
     setcolor(0, 0, 255);
     //setmirror(1);
 
-    if (mactp >= 2000) {mactp -= 2000; if (mact == 0) {mact = 1; } else {mact = 0; }}
+    if (mactp >= 2000) { mactp -= 2000; if (mact == 0) { mact = 1; } else { mact = 0; } }
     if (mmuki == 0) setmirror(1);
 
     if (mtype != 200 && mtype != 1) {
@@ -495,7 +906,8 @@ void rpaint() {
     //巨大化
     else if (mtype == 1) {
       drawimage(grap[41][0], ma / 100, mb / 100);
-    } else if (mtype == 200) {
+    }
+    else if (mtype == 200) {
       drawimage(grap[3][0], ma / 100, mb / 100);
     }
 
@@ -517,9 +929,9 @@ void rpaint() {
       xx[2] = anobia[t] / 100; xx[3] = anobib[t] / 100; xx[14] = 3000; xx[16] = 0;
       if (xx[0] + xx[2] * 100 >= -10 - xx[14] && xx[1] <= fxmax + xx[14] && xx[1] + xx[3] * 100 >= -10 && xx[3] <= fymax) {
         //if (atype[t]>=100)amuki[t]=0;
-        if (amuki[t] == 1) {setmirror(1); }
-        if (atype[t] == 3 && axtype[t] == 1) {drawimageflip(grap[atype[t]][3], xx[0] / 100, xx[1] / 100); xx[16] = 1; }
-        if (atype[t] == 9 && ad[t] >= 1) {drawimageflip(grap[atype[t]][3], xx[0] / 100, xx[1] / 100); xx[16] = 1; }
+        if (amuki[t] == 1) { setmirror(1); }
+        if (atype[t] == 3 && axtype[t] == 1) { drawimageflip(grap[atype[t]][3], xx[0] / 100, xx[1] / 100); xx[16] = 1; }
+        if (atype[t] == 9 && ad[t] >= 1) { drawimageflip(grap[atype[t]][3], xx[0] / 100, xx[1] / 100); xx[16] = 1; }
         if (atype[t] >= 100 && amuki[t] == 1) setmirror(0);
 
         //tekikaki(atype[t]);
@@ -544,7 +956,8 @@ void rpaint() {
         if (atype[t] == 6) {
           if ((atm[t] >= 10 && atm[t] <= 19) || (atm[t] >= 100 && atm[t] <= 119) || atm[t] >= 200) {
             drawimage(grap[150][3], xx[0] / 100, xx[1] / 100);
-          } else {
+          }
+          else {
             drawimage(grap[6][3], xx[0] / 100, xx[1] / 100);
           }
         }
@@ -572,12 +985,12 @@ void rpaint() {
         if (atype[t] == 82) {
 
           if (axtype[t] == 0) {
-            xx[9] = 0; if (stagecolor == 2) {xx[9] = 30; } if (stagecolor == 4) {xx[9] = 60; }
+            xx[9] = 0; if (stagecolor == 2) { xx[9] = 30; } if (stagecolor == 4) { xx[9] = 60; }
             xx[6] = 5 + xx[9]; drawimage(grap[xx[6]][1], xx[0] / 100, xx[1] / 100);
           }
 
           if (axtype[t] == 1) {
-            xx[9] = 0; if (stagecolor == 2) {xx[9] = 30; } if (stagecolor == 4) {xx[9] = 60; }
+            xx[9] = 0; if (stagecolor == 2) { xx[9] = 30; } if (stagecolor == 4) { xx[9] = 60; }
             xx[6] = 4 + xx[9]; drawimage(grap[xx[6]][1], xx[0] / 100, xx[1] / 100);
           }
 
@@ -589,12 +1002,12 @@ void rpaint() {
         if (atype[t] == 83) {
 
           if (axtype[t] == 0) {
-            xx[9] = 0; if (stagecolor == 2) {xx[9] = 30; } if (stagecolor == 4) {xx[9] = 60; }
+            xx[9] = 0; if (stagecolor == 2) { xx[9] = 30; } if (stagecolor == 4) { xx[9] = 60; }
             xx[6] = 5 + xx[9]; drawimage(grap[xx[6]][1], xx[0] / 100 + 10, xx[1] / 100 + 9);
           }
 
           if (axtype[t] == 1) {
-            xx[9] = 0; if (stagecolor == 2) {xx[9] = 30; } if (stagecolor == 4) {xx[9] = 60; }
+            xx[9] = 0; if (stagecolor == 2) { xx[9] = 30; } if (stagecolor == 4) { xx[9] = 60; }
             xx[6] = 4 + xx[9]; drawimage(grap[xx[6]][1], xx[0] / 100 + 10, xx[1] / 100 + 9);
           }
 
@@ -618,7 +1031,8 @@ void rpaint() {
         if (atype[t] == 86) {
           if (ma >= aa[t] - fx - mnobia - 4000 && ma <= aa[t] - fx + anobia[t] + 4000) {
             drawimage(grap[152][3], xx[0] / 100, xx[1] / 100);
-          } else {
+          }
+          else {
             drawimage(grap[86][3], xx[0] / 100, xx[1] / 100);
           }
         }
@@ -651,8 +1065,8 @@ void rpaint() {
       if (xx[0] + xx[2] * 100 >= -10 && xx[1] <= fxmax) {
 
         xx[9] = 0;
-        if (stagecolor == 2) {xx[9] = 30; }
-        if (stagecolor == 4) {xx[9] = 60; }
+        if (stagecolor == 2) { xx[9] = 30; }
+        if (stagecolor == 4) { xx[9] = 60; }
 
         if (ttype[t] < 100) {
           xx[6] = ttype[t] + xx[9]; drawimage(grap[xx[6]][1], xx[0] / 100, xx[1] / 100);
@@ -660,7 +1074,7 @@ void rpaint() {
 
         if (txtype[t] != 10) {
 
-          if (ttype[t] == 100 || ttype[t] == 101 || ttype[t] == 102 || ttype[t] == 103 ||  (ttype[t] == 104 && txtype[t] == 1) || (ttype[t] == 114 && txtype[t] == 1) || ttype[t] == 116) {
+          if (ttype[t] == 100 || ttype[t] == 101 || ttype[t] == 102 || ttype[t] == 103 || (ttype[t] == 104 && txtype[t] == 1) || (ttype[t] == 114 && txtype[t] == 1) || ttype[t] == 116) {
             xx[6] = 2 + xx[9]; drawimage(grap[xx[6]][1], xx[0] / 100, xx[1] / 100);
           }
 
@@ -705,10 +1119,10 @@ void rpaint() {
           drawimage(grap[1][5], xx[0] / 100, xx[1] / 100);
 
         //Pスイッチ
-        if (ttype[t] == 400) {drawimage(grap[2][5], xx[0] / 100, xx[1] / 100); }
+        if (ttype[t] == 400) { drawimage(grap[2][5], xx[0] / 100, xx[1] / 100); }
 
         //コイン
-        if (ttype[t] == 800) {drawimage(grap[0][2], xx[0] / 100 + 2, xx[1] / 100 + 1); }
+        if (ttype[t] == 800) { drawimage(grap[0][2], xx[0] / 100 + 2, xx[1] / 100 + 1); }
 
 #ifdef DEBUG_LEVEL
         {
@@ -796,12 +1210,13 @@ void rpaint() {
 
         //落ちるやつ
         if (stype[t] == 52) {
-          xx[29] = 0; if (stagecolor == 2) {xx[29] = 30; } if (stagecolor == 4) {xx[29] = 60; }
+          xx[29] = 0; if (stagecolor == 2) { xx[29] = 30; } if (stagecolor == 4) { xx[29] = 60; }
 
           for (t3 = 0; t3 <= sc[t] / 3000; t3++) {
             if (sxtype[t] == 0) {
               drawimage(grap[5 + xx[29]][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb);
-              if (stagecolor != 4) {drawimage(grap[6 + xx[29]][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb + 29); } else {drawimage(grap[5 + xx[29]][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb + 29); }
+              if (stagecolor != 4) { drawimage(grap[6 + xx[29]][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb + 29); }
+              else { drawimage(grap[5 + xx[29]][1], (sa[t] - fx) / 100 + fma1 + 29 * t3, (sb[t] - fy) / 100 + fmb + 29); }
             }
             if (sxtype[t] == 1) {
               for (t2 = 0; t2 <= sd[t] / 3000; t2++) {
@@ -820,13 +1235,13 @@ void rpaint() {
 
 
         //ステージトラップ
-        if (trap == 1) {
-          if (stype[t] >= 100 && stype[t] <= 299) {
-            if (stagecolor <= 1 || stagecolor == 3) setc0();
-            if (stagecolor == 2 || stagecolor == 4) setc1();
-            drawrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
-          }
+#ifdef SHOW_TRAP
+        if (stype[t] >= 100 && stype[t] <= 299) {
+          if (stagecolor <= 1 || stagecolor == 3) setc0();
+          if (stagecolor == 2 || stagecolor == 4) setc1();
+          drawrect((sa[t] - fx) / 100 + fma1, (sb[t] - fy) / 100 + fmb, sc[t] / 100, sd[t] / 100);
         }
+#endif
 
         //ゴール
         if (stype[t] == 300) {
@@ -911,7 +1326,8 @@ void rpaint() {
               fillarc(xx[0] / 100 + xx[24], xx[1] / 100 + xx[25], xx[23], xx[23]);
               setcolor(0, 0, 0);
               drawarc(xx[0] / 100 + xx[24], xx[1] / 100 + xx[25], xx[23], xx[23]);
-            } else {
+            }
+            else {
               fillarc(xx[0] / 100 - xx[24], xx[1] / 100 + xx[25], xx[23], xx[23]);
               setcolor(0, 0, 0);
               drawarc(xx[0] / 100 - xx[24], xx[1] / 100 + xx[25], xx[23], xx[23]);
@@ -969,7 +1385,7 @@ void rpaint() {
         if (amsgtype[t] == 1006) strid = IDS_AMSG_1006;
         if (amsgtype[t] == 1007) strid = IDS_AMSG_1007;
         if (amsgtype[t] == 1008) strid = IDS_AMSG_1008;
-                                                  
+
         if (amsgtype[t] == 1011) strid = IDS_AMSG_1011;
         if (amsgtype[t] == 1012) strid = IDS_AMSG_1012;
         if (amsgtype[t] == 1013) strid = IDS_AMSG_1013;
@@ -978,7 +1394,7 @@ void rpaint() {
         if (amsgtype[t] == 1016) strid = IDS_AMSG_1016;
         if (amsgtype[t] == 1017) strid = IDS_AMSG_1017;
         if (amsgtype[t] == 1018) strid = IDS_AMSG_1018;
-                                                  
+
         if (amsgtype[t] == 1021) strid = IDS_AMSG_1021;
         if (amsgtype[t] == 1022) strid = IDS_AMSG_1022;
         if (amsgtype[t] == 1023) strid = IDS_AMSG_1023;
@@ -987,7 +1403,7 @@ void rpaint() {
         if (amsgtype[t] == 1026) strid = IDS_AMSG_1026;
         if (amsgtype[t] == 1027) strid = IDS_AMSG_1027;
         if (amsgtype[t] == 1028) strid = IDS_AMSG_1028;
-                                                  
+
         if (amsgtype[t] == 1031) strid = IDS_AMSG_1031;
         if (amsgtype[t] == 1032) strid = IDS_AMSG_1032;
         if (amsgtype[t] == 1033) strid = IDS_AMSG_1033;
@@ -1008,14 +1424,15 @@ void rpaint() {
         if (amsgtype[t] == 30) strid = IDS_AMSG_30;
         if (amsgtype[t] == 31) strid = IDS_AMSG_31;
         if (amsgtype[t] == 32) strid = IDS_AMSG_32;
-                                                
+
         if (amsgtype[t] == 50) strid = IDS_AMSG_50;
         if (amsgtype[t] == 85) strid = IDS_AMSG_85;
         if (amsgtype[t] == 86) strid = IDS_AMSG_86;
 
         if (amsgtype[t] != 31) {
           xx[5] = (aa[t] + anobia[t] + 300 - fx) / 100; xx[6] = (ab[t] - fy) / 100;
-        } else {
+        }
+        else {
           xx[5] = (aa[t] + anobia[t] + 300 - fx) / 100; xx[6] = (ab[t] - fy - 800) / 100;
         }
 
@@ -1036,15 +1453,16 @@ void rpaint() {
       if (tmsgtype == 1) {
         xx[0] = 1200;
         tmsgy += xx[0];
-        if (tmsgtm == 1) {tmsgtm = 80000000; tmsgtype = 2; }
+        if (tmsgtm == 1) { tmsgtm = 80000000; tmsgtype = 2; }
       }        //1
       else if (tmsgtype == 2) {
         paused = 1;
         tmsgy = 0; tmsgtype = 3; tmsgtm = 15 + 1;
-      } else if (tmsgtype == 3) {
+      }
+      else if (tmsgtype == 3) {
         xx[0] = 1200;
         tmsgy += xx[0];
-        if (tmsgtm == 1) {tmsgtm = 0; tmsgtype = 0; tmsgy = 0; }
+        if (tmsgtm == 1) { tmsgtm = 0; tmsgtype = 0; tmsgy = 0; }
       }        //1
 
       tmsgtm--;
@@ -1055,8 +1473,14 @@ void rpaint() {
     if (mainmsgtype >= 1) {
       setfont(20, 4);
       setcolor(255, 255, 255);
-      if (mainmsgtype == 1) {drawlang(126, 100, IDS_4); }
-      if (mainmsgtype == 1) {for (t2 = 0; t2 <= 2; t2++) drawstring(88 + t2 * 143, 210, "1"); }
+      if (mainmsgtype == 1) { drawlangc(240, 100, IDS_4); }
+      if (mainmsgtype == 1) { 
+        for (t2 = 0; t2 <= 2; t2++) {
+          char buff[16];
+          snprintf(buff, sizeof(buff), "%d", t2 + 1);
+          drawstring(88 + t2 * 143, 210, buff); 
+        }
+      }
       setfont(20, 5);
     }        //mainmsgtype>=1
 
@@ -1064,9 +1488,10 @@ void rpaint() {
     //画面黒
     if (blacktm > 0) {
       blacktm--;
+      setc0();
       fillrect(0, 0, fxmax, fymax);
       if (blacktm == 0) {
-        if (blackx == 1) {zxon = 0; }
+        if (blackx == 1) { zxon = 0; }
       }
 
     }        //blacktm
@@ -1076,14 +1501,23 @@ void rpaint() {
     //score
     {
       char buff[128];
-      setfonttype(DX_FONTTYPE_EDGE);
       setc1();
-      snprintf(buff, sizeof(buff), "%s: %d", string_table[lang][IDS_SCORE], score);
-      drawstring(10, 5, buff);
+      snprintf(buff, sizeof(buff), "%s %d", string_table[lang][IDS_SCORE], score);
+      drawstring(15, 5, buff);
+
+      snprintf(buff, sizeof(buff), string_table[lang][IDS_LEVEL], sta, stb);
+      drawstring(400, 5, buff);
+
 #ifdef TEST_MODE
-      snprintf(buff, sizeof(buff), "st:%d-%d-%d(%d) mainproc:%d", sta, stb, stc, tyuukan, mainproc);
+      setcolor(255, 0, 0);
+      snprintf(buff, sizeof(buff), "stage:%d(%d-%d-%d-%d) mainproc:%d  mtype:%d  mtm:%d", stageid, sta, stb, stc, tyuukan, mainproc, mtype, mtm);
 
       drawstring(10, 25, buff);
+
+      if (stageid > 0) {
+        snprintf(buff, sizeof(buff), "time:%d + %d", save.stage[stageid - 1].time, save.time);
+        drawstring(10, 45, buff);
+      }
 #endif
       setfonttype(DX_FONTTYPE_NORMAL);
     }
@@ -1127,38 +1561,52 @@ void rpaint() {
     drawimage(grap[0][0], 190, 190);
     setcolor(255, 255, 255);
     char buff[256];
-    snprintf(buff, sizeof(buff), " x %d", nokori);
+    snprintf(buff, sizeof(buff), " x %d", 2 - save.life);
     drawstring(230, 200, buff);
 
+    setc1();
+    snprintf(buff, sizeof(buff), "%s %d", string_table[lang][IDS_SCORE], score);
+    drawstring(15, 5, buff);
+
+    snprintf(buff, sizeof(buff), string_table[lang][IDS_LEVEL], sta, stb);
+    drawstring(400, 5, buff);
 
   } //if (mainproc==10){
 
 
   //タイトル
   if (mainproc == 100) {
+    int height = getscreenheight();
+    int h = height - 420;
 
     setcolor(160, 180, 250);
     clearscreen();
 
-    drawimage(mgrap[30], 240 - 380 / 2, 60);
+    //drawimage(grap[50][0], 240 - 380 / 2, height * 2 / 10);
 
-    drawimage(grap[0][4], 12 * 30, 10 * 29 - 12);
-    drawimage(grap[1][4], 6 * 30, 12 * 29 - 12);
+    drawimage(grap[0][4], 12 * 30, h + 10 * 29 - 12);
+    drawimage(grap[1][4], 6 * 30, h + 12 * 29 - 12);
 
     //プレイヤー
-    drawimage(grap[0][0], 2 * 30, 12 * 29 - 12 - 6);
+    drawimage(grap[0][0], 2 * 30, h + 12 * 29 - 12 - 6);
     for (t = 0; t <= 16; t++) {
-      drawimage(grap[5][1], 29 * t, 13 * 29 - 12);
-      drawimage(grap[6][1], 29 * t, 14 * 29 - 12);
+      drawimage(grap[5][1], 29 * t, h + 13 * 29 - 12);
+      drawimage(grap[6][1], 29 * t, h + 14 * 29 - 12);
     }
 
 
-    setcolor(0, 0, 0);
-    stri(IDS_START, 240 - 8 * 20 / 2, 250);
-    
+    {
+      //char buff[256];
+      //snprintf(buff, sizeof(buff), string_table[lang][IDS_STAGE], sta, stb);
+      //setcolor(0, 0, 0);
+      //drawstringc(240, 250, buff);
+    }
   } //if (mainproc==100)
 
 
+  if (mainproc == 10 || mainproc == 1) {
+    drawpad();
+  }
 
   //drawstringf(230,200,GetColor(255,255,255)," × %d,%d,%d",sta,stb,stc);
 
@@ -1172,7 +1620,8 @@ void rpaint() {
 
 
 //メインプログラム
-void Mainprogram() {
+EMSCRIPTEN_KEEPALIVE
+void dlm_frame() {
   int time = gettime();
   if (time - stime < 1000 / 30)
     return;
@@ -1182,7 +1631,7 @@ void Mainprogram() {
   //キー
   key = input_get();
 
-  if (paused) { 
+  if (paused) {
     if (key) paused = 0;
     return;
   }
@@ -1207,6 +1656,7 @@ void Mainprogram() {
       fx = 0; fy = 0;
       fzx = 0;
       stageonoff = 0;
+      scorepos = 0;
 
 
 
@@ -1220,7 +1670,8 @@ void Mainprogram() {
 
 
       //ランダムにさせる
-      if (over == 1) {
+#ifdef RAND_STAGE
+      if (1) {
         //for (t=0;t<;t++){na[t]=getrand(300000);nb[t]=getrand(3000);}
         for (t = 0; t < tmax; t++) {
           if (getrand(3) <= 1) {
@@ -1243,6 +1694,7 @@ void Mainprogram() {
 
         if (getrand(4) == 0) stagecolor = getrand(4);
       }
+#endif
 
 
 
@@ -1262,9 +1714,9 @@ void Mainprogram() {
     //プレイヤーの移動
     xx[0] = 0; actaon[2] = 0; actaon[3] = 0;
     if (mkeytm <= 0) {
-      if ((key & PAD_INPUT_LEFT) && keytm <= 0) {actaon[0] = -1; mmuki = 0; actaon[4] = -1; }
-      if ((key & PAD_INPUT_RIGHT) && keytm <= 0) {actaon[0] = 1; mmuki = 1; actaon[4] = 1; }
-      if (key & PAD_INPUT_DOWN) {actaon[3] = 1; }
+      if ((key & PAD_INPUT_LEFT) && keytm <= 0) { actaon[0] = -1; mmuki = 0; actaon[4] = -1; }
+      if ((key & PAD_INPUT_RIGHT) && keytm <= 0) { actaon[0] = 1; mmuki = 1; actaon[4] = 1; }
+      if (key & PAD_INPUT_DOWN) { actaon[3] = 1; }
     }
 
     //if (input_keydown(KEY_INPUT_F1)==1){end();}
@@ -1275,7 +1727,7 @@ void Mainprogram() {
 
     if (mkeytm <= 0) {
       if (key & PAD_INPUT_JUMP) { //end();
-        if (actaon[1] == 10) {actaon[1] = 1; xx[0] = 1; }
+        if (actaon[1] == 10) { actaon[1] = 1; xx[0] = 1; }
         actaon[2] = 1;
       }
     }
@@ -1284,8 +1736,8 @@ void Mainprogram() {
       if (mjumptm == 8 && md >= -900) {
         md = -1300;
         //ダッシュ中
-        xx[22] = 200; if (mc >= xx[22] || mc <= -xx[22]) {md = -1400; }
-        xx[22] = 600; if (mc >= xx[22] || mc <= -xx[22]) {md = -1500; }
+        xx[22] = 200; if (mc >= xx[22] || mc <= -xx[22]) { md = -1400; }
+        xx[22] = 600; if (mc >= xx[22] || mc <= -xx[22]) { md = -1500; }
       }
       // && xx[0]==0 && md<=-10
 
@@ -1308,33 +1760,33 @@ void Mainprogram() {
     xx[12] = 1; xx[13] = 2;
 
     //すべり補正
-    if (mrzimen == 1) {xx[0] = 20; xx[12] = 9; xx[13] = 10; }
+    if (mrzimen == 1) { xx[0] = 20; xx[12] = 9; xx[13] = 10; }
 
 
     //if (mzimen==0){xx[0]-=15;}
     if (actaon[0] == -1) {
       if (!(mzimen == 0 && mc < -xx[8])) {
-        if (mc >= -xx[9]) {mc -= xx[0]; if (mc < -xx[9]) {mc = -xx[9] - 1; }}
+        if (mc >= -xx[9]) { mc -= xx[0]; if (mc < -xx[9]) { mc = -xx[9] - 1; } }
         if (mc < -xx[9] && atktm <= 0) mc -= xx[0] / 10;
       }
       if (mrzimen != 1) {
-        if (mc > 100 && mzimen == 0) {mc -= xx[0] * 2 / 3; }
-        if (mc > 100 && mzimen == 1) {mc -= xx[0]; if (mzimen == 1) {mc -= xx[0] * 1 / 2; }} actaon[0] = 3;
+        if (mc > 100 && mzimen == 0) { mc -= xx[0] * 2 / 3; }
+        if (mc > 100 && mzimen == 1) { mc -= xx[0]; if (mzimen == 1) { mc -= xx[0] * 1 / 2; } } actaon[0] = 3;
         mkasok += 1;
       }
     }
 
     if (actaon[0] == 1) {
       if (!(mzimen == 0 && mc > xx[8])) {
-        if (mc <= xx[9]) {mc += xx[0]; if (mc > xx[9]) {mc = xx[9] + 1; }}
+        if (mc <= xx[9]) { mc += xx[0]; if (mc > xx[9]) { mc = xx[9] + 1; } }
         if (mc > xx[9] && atktm <= 0) mc += xx[0] / 10;
       }
       if (mrzimen != 1) {
-        if (mc < -100 && mzimen == 0) {mc += xx[0] * 2 / 3; }
-        if (mc < -100 && mzimen == 1) {mc += xx[0]; if (mzimen == 1) {mc += xx[0] * 1 / 2; }} actaon[0] = 3; mkasok += 1;
+        if (mc < -100 && mzimen == 0) { mc += xx[0] * 2 / 3; }
+        if (mc < -100 && mzimen == 1) { mc += xx[0]; if (mzimen == 1) { mc += xx[0] * 1 / 2; } } actaon[0] = 3; mkasok += 1;
       }
     }
-    if (actaon[0] == 0 && mkasok > 0) {mkasok -= 2; } if (mkasok > 8) {mkasok = 8; }
+    if (actaon[0] == 0 && mkasok > 0) { mkasok -= 2; } if (mkasok > 8) { mkasok = 8; }
 
     //すべり補正初期化
     if (mzimen != 1) mrzimen = 0;
@@ -1382,14 +1834,24 @@ void Mainprogram() {
 #ifdef TEST_MODE
       if ((key & PAD_INPUT_CLICK) == 0) mhp = 1; else
 #endif
-      {mkeytm = 12; mhp = -20; mtype = 200; mtm = 0; soundplay(12); bgmstop(); soundstop(11); soundstop(16);}
+      {
+        printf("killed: hp=%d\n", mhp);
+        mkeytm = 12; mhp = -20; mtype = 200; mtm = 0;
+        dlm_killed(); dlm_save();
+        soundplay(12); bgmstop(); soundstop(11); soundstop(16);
+      }
     }    //mhp
          //if (mhp<=-10){
     if (mtype == 200) {
-      if (mtm <= 11) {mc = 0; md = 0; }
-      if (mtm == 12) {md = -1200; }
-      if (mtm >= 12) {mc = 0; }
-      if (mtm >= 100 || fast == 1) {zxon = 0; mainproc = 10; mtm = 0; mkeytm = 0; nokori--; if (fast == 1) mtype = 0; } //mtm>=100
+      if (mtm <= 11) { mc = 0; md = 0; }
+      if (mtm == 12) { md = -1200; }
+      if (mtm >= 12) { mc = 0; }
+      if (mtm == 99) {
+        dlm_score(1, score);
+      }
+      if (mtm >= 100) {
+        zxon = 0; mainproc = 10; mtm = 0; mkeytm = 0;
+      } //mtm>=100
     }    //mtype==200
 
 
@@ -1401,13 +1863,15 @@ void Mainprogram() {
 
       mkeytm = 2;
       md = -1500;
-      if (mb <= -6000) {blackx = 1; blacktm = 20; stc += 5; stagerr = 0; bgmstop(); mtm = 0; mtype = 0; mkeytm = -1; }
+      if (mb <= -6000) {
+        blackx = 1; blacktm = 20; stc += 5; stagerr = 0; bgmstop(); mtm = 0; mtype = 0; mkeytm = -1;
+      }
     }    //2
 
     //ジャンプ台アウト
     if (mtype == 3) {
       md = -2400;
-      if (mb <= -6000) {mb = -80000000; mhp = 0; }
+      if (mb <= -6000) { mb = -80000000; mhp = 0; }
     }
 
 
@@ -1419,9 +1883,9 @@ void Mainprogram() {
       if (mtype == 100) {
         if (mxtype == 0) {
           mc = 0; md = 0; t = 28;
-          if (mtm <= 16) {mb += 240; mzz = 100; }
-          if (mtm == 17) {mb = -80000000; }
-          if (mtm == 23) {sa[t] -= 100; }
+          if (mtm <= 16) { mb += 240; mzz = 100; }
+          if (mtm == 17) { mb = -80000000; }
+          if (mtm == 23) { sa[t] -= 100; }
           if (mtm >= 44 && mtm <= 60) {
             if (mtm % 2 == 0) sa[t] += 200;
             if (mtm % 2 == 1) sa[t] -= 200;
@@ -1434,32 +1898,37 @@ void Mainprogram() {
             if (mtm % 2 == 0) sa[t] += 600;
             if (mtm % 2 == 1) sa[t] -= 600;
           }
-          if (mtm >= 110) {sb[t] -= mzz; mzz += 80; if (mzz > 1600) mzz = 1600; }
-          if (mtm == 160) {mtype = 0; mhp--; }
+          if (mtm >= 110) { sb[t] -= mzz; mzz += 80; if (mzz > 1600) mzz = 1600; }
+          if (mtm == 160) { mtype = 0; mhp--; }
 
         }
         //ふっとばし
         else if (mxtype == 10) {
           mc = 0; md = 0;
-          if (mtm <= 16) {ma += 240; } //mzz=100;}
+          if (mtm <= 16) { ma += 240; } //mzz=100;}
           if (mtm == 16) mb -= 1100;
           if (mtm == 20) soundplay(10);
 
-          if (mtm >= 24) {ma -= 2000; mmuki = 0; }
-          if (mtm >= 48) {mtype = 0; mhp--; }
+          if (mtm >= 24) { ma -= 2000; mmuki = 0; }
+          if (mtm >= 48) { mtype = 0; mhp--; }
 
-        } else {
+        }
+        else {
           mc = 0; md = 0;
-          if (mtm <= 16 && mxtype != 3) {mb += 240; } //mzz=100;}
-          if (mtm <= 16 && mxtype == 3) {ma += 240; }
-          if (mtm == 19 && mxtype == 2) {mhp = 0; mtype = 2000; mtm = 0; mmsgtm = 30; mmsgtype = 51; }
-          if (mtm == 19 && mxtype == 5) {mhp = 0; mtype = 2000; mtm = 0; mmsgtm = 30; mmsgtype = 52; }
+          if (mtm <= 16 && mxtype != 3) { mb += 240; } //mzz=100;}
+          if (mtm <= 16 && mxtype == 3) { ma += 240; }
+          if (mtm == 19 && mxtype == 2) { mhp = 0; mtype = 2000; mtm = 0; mmsgtm = 30; mmsgtype = 51; }
+          if (mtm == 19 && mxtype == 5) { mhp = 0; mtype = 2000; mtm = 0; mmsgtm = 30; mmsgtype = 52; }
           if (mtm == 20) {
             if (mxtype == 6) {
               stc += 10;
-            } else {
+            }
+            else {
+              printf("stage clear(stc)\n");
+              dlm_stageclear();
               stc++;
               fx = 0;
+              dlm_save();
             }
             mb = -80000000;
             mxtype = 0;
@@ -1473,37 +1942,47 @@ void Mainprogram() {
 
       if (mtype == 300) {
         mkeytm = 3;
-        if (mtm <= 1) {mc = 0; md = 0; }
-        if (mtm >= 2 && mtm <= 42) {md = 600; mmuki = 1; }
-        if (mtm > 43 && mtm <= 108) {mc = 300; }
-        if (mtm == 110) {mb = -80000000; mc = 0; }
+        if (mtm <= 1) { mc = 0; md = 0; }
+        if (mtm >= 2 && mtm <= 42) { md = 600; mmuki = 1; }
+        if (mtm > 43 && mtm <= 108) { mc = 300; }
+        if (mtm == 110) { mb = -80000000; mc = 0; }
+        if (mtm == 110) {
+          printf("stage clear(stb)\n");
+          dlm_stageclear();
+        }
         if (mtm == 250) {
           stb++; stc = 0; zxon = 0; tyuukan = 0; mainproc = 10; maintm = 0;
+          dlm_save();
+          dlm_score(3, score);
         }
       } //mtype==300
 
       if (mtype == 301 || mtype == 302) {
         mkeytm = 3;
 
-        if (mtm <= 1) {mc = 0; md = 0; }
+        if (mtm <= 1) { 
+          mc = 0; md = 0; 
+        }
 
         if (mtm >= 2 && ((mtype == 301 && mtm <= 102) || (mtype == 302 && mtm <= 60))) {
           xx[5] = 500;
           ma -= xx[5]; fx += xx[5]; fzx += xx[5];
         }
 
-        if ((mtype == 301 || mtype == 302) && mtm >= 2 && mtm <= 100) {
+        if ((mtype == 301 || mtype == 302) && mtm >= 2 && mtm <= 130) {
           mc = 250; mmuki = 1;
         }
 
         if (mtm == 200) {
           soundplay(17);
+          dlm_stageclear();
           if (mtype == 301) {
             na[nco] = 121 * 29 * 100 - 1100; nb[nco] = 4 * 29 * 100; ntype[nco] = 101; nco++; if (nco >= nmax) nco = 0;
             na[nco] = 121 * 29 * 100 - 1100; nb[nco] = 6 * 29 * 100; ntype[nco] = 102; nco++; if (nco >= nmax) nco = 0;
-          } else {
-            na[nco] = 157 * 29 * 100 - 1100; nb[nco] = 4 * 29 * 100; ntype[nco] = 101; nco++; if (nco >= nmax) nco = 0;
-            na[nco] = 155 * 29 * 100 - 1100; nb[nco] = 6 * 29 * 100; ntype[nco] = 102; nco++; if (nco >= nmax) nco = 0;
+          }
+          else {
+            //na[nco] = 157 * 29 * 100 - 1100; nb[nco] = 4 * 29 * 100; ntype[nco] = 101; nco++; if (nco >= nmax) nco = 0;
+            //na[nco] = 155 * 29 * 100 - 1100; nb[nco] = 6 * 29 * 100; ntype[nco] = 102; nco++; if (nco >= nmax) nco = 0;
           }
         }
         //スタッフロールへ
@@ -1511,9 +1990,14 @@ void Mainprogram() {
         if (mtm == 440) {
           if (mtype == 301) {
             ending = 1;
-          } else {
+            printf("ending\n");
+          }
+          else {
+            printf("stage clear(sta)\n");
             sta++; stb = 1; stc = 0;
             zxon = 0; tyuukan = 0; mainproc = 10; maintm = 0;
+            dlm_save();
+            dlm_score(4, score);
           }
         }
 
@@ -1533,7 +2017,7 @@ void Mainprogram() {
 
 
 //移動
-    if (mkeytm >= 1) {mkeytm--; } //mc=0;}
+    if (mkeytm >= 1) { mkeytm--; } //mc=0;}
     ma += mc; mb += md;
     if (mc < 0) mactp += (-mc);
     if (mc >= 0) mactp += mc;
@@ -1541,31 +2025,31 @@ void Mainprogram() {
     if (mtype <= 9 || mtype == 200 || mtype == 300 || mtype == 301 || mtype == 302) md += 100;
 
 
-//走る際の最大値
+    //走る際の最大値
     if (mtype == 0) {
       xx[0] = 800; xx[1] = 1600;
-      if (mc > xx[0] && mc < xx[0] + 200) {mc = xx[0]; }
-      if (mc > xx[0] + 200) {mc -= 200; }
-      if (mc < -xx[0] && mc > -xx[0] - 200) {mc = -xx[0]; }
-      if (mc < -xx[0] - 200) {mc += 200; }
-      if (md > xx[1]) {md = xx[1]; }
+      if (mc > xx[0] && mc < xx[0] + 200) { mc = xx[0]; }
+      if (mc > xx[0] + 200) { mc -= 200; }
+      if (mc < -xx[0] && mc > -xx[0] - 200) { mc = -xx[0]; }
+      if (mc < -xx[0] - 200) { mc += 200; }
+      if (md > xx[1]) { md = xx[1]; }
     }
 
-//プレイヤー
-//地面の摩擦
+    //プレイヤー
+    //地面の摩擦
     if (mzimen == 1 && actaon[0] != 3) {
       if ((mtype <= 9) || mtype == 300 || mtype == 301 || mtype == 302) {
         if (mrzimen == 0) {
           xx[2] = 30; xx[1] = 60; xx[3] = 30;
-          if (mc >= -xx[3] && mc <= xx[3]) {mc = 0; }
-          if (mc >= xx[2]) {mc -= xx[1]; }
-          if (mc <= -xx[2]) {mc += xx[1]; }
+          if (mc >= -xx[3] && mc <= xx[3]) { mc = 0; }
+          if (mc >= xx[2]) { mc -= xx[1]; }
+          if (mc <= -xx[2]) { mc += xx[1]; }
         }
         if (mrzimen == 1) {
           xx[2] = 5; xx[1] = 10; xx[3] = 5;
-          if (mc >= -xx[3] && mc <= xx[3]) {mc = 0; }
-          if (mc >= xx[2]) {mc -= xx[1]; }
-          if (mc <= -xx[2]) {mc += xx[1]; }
+          if (mc >= -xx[3] && mc <= xx[3]) { mc = 0; }
+          if (mc >= xx[2]) { mc -= xx[1]; }
+          if (mc <= -xx[2]) { mc += xx[1]; }
         }
       }
     }
@@ -1577,23 +2061,23 @@ void Mainprogram() {
 
 
 
-//地面判定初期化
+    //地面判定初期化
     mzimen = 0;
 
-//場外
+    //場外
     if (mtype <= 9 && mhp >= 1) {
-      if (ma < 100) {ma = 100; mc = 0; }
-      if (ma + mnobia > fxmax) {ma = fxmax - mnobia; mc = 0; }
+      if (ma < 100) { ma = 100; mc = 0; }
+      if (ma + mnobia > fxmax) { ma = fxmax - mnobia; mc = 0; }
     }
-//if (mb>=42000){mb=42000;mzimen=1;}
-    if (mb >= 38000 && mhp >= 0 && stagecolor == 4) {mhp = -2; mmsgtm = 30; mmsgtype = 55; }
-    if (mb >= 52000 && mhp >= 0) {mhp = -2; }
+    //if (mb>=42000){mb=42000;mzimen=1;}
+    if (mb >= 38000 && mhp >= 0 && stagecolor == 4) { mhp = -2; mmsgtm = 30; mmsgtype = 55; }
+    if (mb >= 52000 && mhp >= 0) { mhp = -2; }
 
 
 
 
-//ブロック
-//1-れんが、コイン、無し、土台、7-隠し
+    //ブロック
+    //1-れんが、コイン、無し、土台、7-隠し
 
     xx[15] = 0;
     for (t = 0; t < tmax; t++) {
@@ -1609,10 +2093,11 @@ void Mainprogram() {
 
               //上
               if (ttype[t] != 7 && ttype[t] != 110 && !(ttype[t] == 114)) {
-                if (ma + mnobia > xx[8] + xx[0] * 2 + 100 && ma<xx[8] + xx[1] - xx[0] *2 - 100 && mb + mnobib>xx[9] && mb + mnobib < xx[9] + xx[1] && md >= -100) {
+                if (ma + mnobia > xx[8] + xx[0] * 2 + 100 && ma<xx[8] + xx[1] - xx[0] * 2 - 100 && mb + mnobib>xx[9] && mb + mnobib < xx[9] + xx[1] && md >= -100) {
                   if (ttype[t] != 115 && ttype[t] != 400 && ttype[t] != 117 && ttype[t] != 118 && ttype[t] != 120) {
                     mb = xx[9] - mnobib + 100; md = 0; mzimen = 1; xx[16] = 1;
-                  } else if (ttype[t] == 115) {
+                  }
+                  else if (ttype[t] == 115) {
                     soundplay(3);
                     eyobi(ta[t] + 1200, tb[t] + 1200, 300, -1000, 0, 160, 1000, 1000, 1, 120);
                     eyobi(ta[t] + 1200, tb[t] + 1200, -300, -1000, 0, 160, 1000, 1000, 1, 120);
@@ -1634,7 +2119,7 @@ void Mainprogram() {
                   else if (ttype[t] == 117) {
                     soundplay(14);
                     md = -1500; mtype = 2; mtm = 0;
-                    if (txtype[t] >= 2 && mtype == 2) {mtype = 0; md = -1600; txtype[t] = 3; }
+                    if (txtype[t] >= 2 && mtype == 2) { mtype = 0; md = -1600; txtype[t] = 3; }
                     if (txtype[t] == 0) txtype[t] = 1;
                   }
                   //ジャンプ台
@@ -1652,14 +2137,14 @@ void Mainprogram() {
             //ブロック判定の入れ替え
             if (!(mztm >= 1 && mztype == 1)) {
               xx[21] = 0; xx[22] = 1; //xx[12]=0;
-              if (mzimen == 1 || mjumptm >= 10) {xx[21] = 3; xx[22] = 0; }
+              if (mzimen == 1 || mjumptm >= 10) { xx[21] = 3; xx[22] = 0; }
               for (t3 = 0; t3 <= 1; t3++) {
 
                 //下
                 if (t3 == xx[21] && mtype != 100 && ttype[t] != 117) { // && xx[12]==0){
-                  if (ma + mnobia > xx[8] + xx[0] * 2 + 800 && ma<xx[8] + xx[1] - xx[0] *2 - 800 && mb>xx[9] - xx[0] * 2 && mb < xx[9] + xx[1] - xx[0] * 2 && md <= 0) {
+                  if (ma + mnobia > xx[8] + xx[0] * 2 + 800 && ma<xx[8] + xx[1] - xx[0] * 2 - 800 && mb>xx[9] - xx[0] * 2 && mb < xx[9] + xx[1] - xx[0] * 2 && md <= 0) {
                     xx[16] = 1; xx[17] = 1;
-                    mb = xx[9] + xx[1] + xx[0]; if (md < 0) {md = -md * 2 / 3; } //}
+                    mb = xx[9] + xx[1] + xx[0]; if (md < 0) { md = -md * 2 / 3; } //}
                     //壊れる
                     if (ttype[t] == 1 && mzimen == 0) {
                       soundplay(3);
@@ -1679,7 +2164,7 @@ void Mainprogram() {
                     if (ttype[t] == 7) {
                       soundplay(4);
                       eyobi(ta[t] + 10, tb[t], 0, -800, 0, 40, 3000, 3000, 0, 16);
-                      mb = xx[9] + xx[1] + xx[0]; ttype[t] = 3; if (md < 0) {md = -md * 2 / 3; }
+                      mb = xx[9] + xx[1] + xx[0]; ttype[t] = 3; if (md < 0) { md = -md * 2 / 3; }
                     }
                     // トゲ
                     if (ttype[t] == 10) {
@@ -1719,14 +2204,14 @@ void Mainprogram() {
 
           if (ttype[t] == 800) {
             //if (xx[0]+xx[2]>=-xx[14] && xx[0]<=fxmax+xx[14] && xx[1]+xx[3]>=-10-9000 && xx[1]<=fymax+10000){
-            if (mb > xx[9] - xx[0] * 2 - 2000 && mb<xx[9] + xx[1] - xx[0] *2 + 2000 && ma + mnobia>xx[8] - 400 && ma < xx[8] + xx[1]) {
+            if (mb > xx[9] - xx[0] * 2 - 2000 && mb<xx[9] + xx[1] - xx[0] * 2 + 2000 && ma + mnobia>xx[8] - 400 && ma < xx[8] + xx[1]) {
               ta[t] = -800000; soundplay(4);
             }
           }
 
           //剣とってクリア
           if (ttype[t] == 140) {
-            if (mb > xx[9] - xx[0] * 2 - 2000 && mb<xx[9] + xx[1] - xx[0] *2 + 2000 && ma + mnobia>xx[8] - 400 && ma < xx[8] + xx[1]) {
+            if (mb > xx[9] - xx[0] * 2 - 2000 && mb<xx[9] + xx[1] - xx[0] * 2 + 2000 && ma + mnobia>xx[8] - 400 && ma < xx[8] + xx[1]) {
               ta[t] = -800000; //soundplay(4);
               sracttype[20] = 1; sron[20] = 1;
               bgmstop(); mtype = 301; mtm = 0; soundplay(16);
@@ -1737,13 +2222,14 @@ void Mainprogram() {
 
           //特殊的
           if (ttype[t] == 100) { //xx[9]+xx[1]+3000<mb && // && mb>xx[9]-xx[0]*2
-            if (mb > xx[9] - xx[0] * 2 - 2000 && mb<xx[9] + xx[1] - xx[0] *2 + 2000 && ma + mnobia>xx[8] - 400 && ma < xx[8] + xx[1] && md <= 0) {
+            if (mb > xx[9] - xx[0] * 2 - 2000 && mb<xx[9] + xx[1] - xx[0] * 2 + 2000 && ma + mnobia>xx[8] - 400 && ma < xx[8] + xx[1] && md <= 0) {
               if (txtype[t] == 0) tb[t] = mb + fy - 1200 - xx[1];
             }
 
             if (txtype[t] == 1) {
               if (xx[17] == 1) {
-                if (ma + mnobia > xx[8] - 400 && ma < xx[8] + xx[1] / 2 - 1500) {ta[t] += 3000; } else if (ma + mnobia >= xx[8] + xx[1] / 2 - 1500 && ma < xx[8] + xx[1]) {
+                if (ma + mnobia > xx[8] - 400 && ma < xx[8] + xx[1] / 2 - 1500) { ta[t] += 3000; }
+                else if (ma + mnobia >= xx[8] + xx[1] / 2 - 1500 && ma < xx[8] + xx[1]) {
                   ta[t] -= 3000;
                 }
               }
@@ -1765,7 +2251,7 @@ void Mainprogram() {
               if (txtype[t] == 0) ayobi(ta[t], tb[t], 0, 0, 0, 0, 0);
               if (txtype[t] == 1) ayobi(ta[t], tb[t], 0, 0, 0, 4, 0);
               if (txtype[t] == 3) ayobi(ta[t], tb[t], 0, 0, 0, 101, 0);
-              if (txtype[t] == 4) {abrocktm[aco] = 20; ayobi(ta[t] - 400, tb[t] - 1600, 0, 0, 0, 6, 0); }
+              if (txtype[t] == 4) { abrocktm[aco] = 20; ayobi(ta[t] - 400, tb[t] - 1600, 0, 0, 0, 6, 0); }
               if (txtype[t] == 10) ayobi(ta[t], tb[t], 0, 0, 0, 101, 0);
             }
           }  //101
@@ -1840,7 +2326,7 @@ void Mainprogram() {
                 soundplay(8); ttype[t] = 3;
                 abrocktm[aco] = 16; ayobi(ta[t], tb[t], 0, 0, 0, 102, 1);
               }
-              if (txtype[t] == 2) {soundplay(4); eyobi(ta[t] + 10, tb[t], 0, -800, 0, 40, 3000, 3000, 0, 16); ttype[t] = 115; txtype[t] = 0; }
+              if (txtype[t] == 2) { soundplay(4); eyobi(ta[t] + 10, tb[t], 0, -800, 0, 40, 3000, 3000, 0, 16); ttype[t] = 115; txtype[t] = 0; }
               if (txtype[t] == 10) {
                 if (stageonoff == 1) {
                   ttype[t] = 130; stageonoff = 0; soundplay(13); txtype[t] = 2; for (t = 0; t < amax; t++) {
@@ -1850,7 +2336,8 @@ void Mainprogram() {
                       }
                     }
                   }
-                } else {soundplay(4); eyobi(ta[t] + 10, tb[t], 0, -800, 0, 40, 3000, 3000, 0, 16); ttype[t] = 3; }
+                }
+                else { soundplay(4); eyobi(ta[t] + 10, tb[t], 0, -800, 0, 40, 3000, 3000, 0, 16); ttype[t] = 3; }
               }
 
             }
@@ -1896,7 +2383,8 @@ void Mainprogram() {
                 stageonoff = 0; soundplay(13);
               }
             }
-          } else if (ttype[t] == 131) {
+          }
+          else if (ttype[t] == 131) {
             if (xx[17] == 1 && txtype[t] != 2) {
               stageonoff = 1; soundplay(13);
               if (txtype[t] == 1) {
@@ -1935,7 +2423,8 @@ void Mainprogram() {
           }       //300
 
 
-        } else if (mtype == 1) {
+        }
+        else if (mtype == 1) {
           if (ma + mnobia > xx[8] && ma<xx[8] + xx[1] && mb + mnobib>xx[9] && mb < xx[9] + xx[1]) {
 
             soundplay(3);
@@ -1950,14 +2439,14 @@ void Mainprogram() {
 
 
         //ONOFF
-        if (ttype[t] == 130 && stageonoff == 0) {ttype[t] = 131; }
-        if (ttype[t] == 131 && stageonoff == 1) {ttype[t] = 130; }
+        if (ttype[t] == 130 && stageonoff == 0) { ttype[t] = 131; }
+        if (ttype[t] == 131 && stageonoff == 1) { ttype[t] = 130; }
 
         //ヒント
         if (ttype[t] == 300) {
           if (txtype[t] >= 500 && ta[t] >= -6000) { // && ta[t]>=-6000){
             if (txtype[t] <= 539) txtype[t]++;
-            if (txtype[t] >= 540) {ta[t] -= 500; }
+            if (txtype[t] >= 540) { ta[t] -= 500; }
           }
         }     //300
 
@@ -2004,7 +2493,7 @@ void Mainprogram() {
             }
 
             if (sgtype[t] == 1 && sb[t] <= fymax + 18000) {
-              sr[t] += 120; if (sr[t] >= 1600) {sr[t] = 1600; }
+              sr[t] += 120; if (sr[t] >= 1600) { sr[t] = 1600; }
               sb[t] += sr[t];
               if (ma + mnobia > xx[8] + xx[0] && ma<xx[8] + sc[t] - xx[0] && mb + mnobib>xx[9] && mb < xx[9] + sd[t] + xx[0]) {
                 mhp--; xx[7] = 1;
@@ -2018,7 +2507,7 @@ void Mainprogram() {
               sgtype[t] = 1; sr[t] = 0;
             }
             if (sgtype[t] == 1) {
-              sr[t] += 120; if (sr[t] >= 1600) {sr[t] = 1600; }
+              sr[t] += 120; if (sr[t] >= 1600) { sr[t] = 1600; }
               sb[t] += sr[t];
             }
           }
@@ -2027,11 +2516,11 @@ void Mainprogram() {
 
           //通常地面
           if (xx[7] == 0) {
-            if (ma + mnobia > xx[8] + xx[0] && ma<xx[8] + sc[t] - xx[0] && mb + mnobib>xx[9] && mb + mnobib < xx[9] + xx[1] && md >= -100) {mb = sb[t] - fy - mnobib + 100; md = 0; mzimen = 1; }
-            if (ma + mnobia > xx[8] - xx[0] && ma<xx[8] + xx[2] && mb + mnobib>xx[9] + xx[1] * 3 / 4 && mb < xx[9] + sd[t] - xx[2]) {ma = xx[8] - xx[0] - mnobia; mc = 0; }
-            if (ma + mnobia > xx[8] + sc[t] - xx[0] && ma<xx[8] + sc[t] + xx[0] && mb + mnobib>xx[9] + xx[1] * 3 / 4 && mb < xx[9] + sd[t] - xx[2]) {ma = xx[8] + sc[t] + xx[0]; mc = 0; }
-            if (ma + mnobia > xx[8] + xx[0] * 2 && ma<xx[8] + sc[t] - xx[0] *2 && mb>xx[9] + sd[t] - xx[1] && mb < xx[9] + sd[t] + xx[0]) {
-              mb = xx[9] + sd[t] + xx[0]; if (md < 0) {md = -md * 2 / 3; }
+            if (ma + mnobia > xx[8] + xx[0] && ma<xx[8] + sc[t] - xx[0] && mb + mnobib>xx[9] && mb + mnobib < xx[9] + xx[1] && md >= -100) { mb = sb[t] - fy - mnobib + 100; md = 0; mzimen = 1; }
+            if (ma + mnobia > xx[8] - xx[0] && ma<xx[8] + xx[2] && mb + mnobib>xx[9] + xx[1] * 3 / 4 && mb < xx[9] + sd[t] - xx[2]) { ma = xx[8] - xx[0] - mnobia; mc = 0; }
+            if (ma + mnobia > xx[8] + sc[t] - xx[0] && ma<xx[8] + sc[t] + xx[0] && mb + mnobib>xx[9] + xx[1] * 3 / 4 && mb < xx[9] + sd[t] - xx[2]) { ma = xx[8] + sc[t] + xx[0]; mc = 0; }
+            if (ma + mnobia > xx[8] + xx[0] * 2 && ma<xx[8] + sc[t] - xx[0] * 2 && mb>xx[9] + sd[t] - xx[1] && mb < xx[9] + sd[t] + xx[0]) {
+              mb = xx[9] + sd[t] + xx[0]; if (md < 0) { md = -md * 2 / 3; }
             }
           }      //xx[7]
 
@@ -2092,29 +2581,35 @@ void Mainprogram() {
                 ayobi(sa[t] + 1000, 32000, 0, 0, 0, 3, 0); sa[t] = -800000000; soundplay(10);
               }
             }
-            if (stype[t] == 101) {ayobi(sa[t] + 6000, -4000, 0, 0, 0, 3, 1); sa[t] = -800000000; soundplay(10); }
+            if (stype[t] == 101) { ayobi(sa[t] + 6000, -4000, 0, 0, 0, 3, 1); sa[t] = -800000000; soundplay(10); }
             if (stype[t] == 102) {
               if (sxtype[t] == 0) {
                 for (t3 = 0; t3 <= 3; t3++) {
                   ayobi(sa[t] + t3 * 3000, -3000, 0, 0, 0, 0, 0);
                 }
               }
-              if (sxtype[t] == 1 && mb >= 16000) {ayobi(sa[t] + 1500, 44000, 0, -2000, 0, 4, 0); } else if (sxtype[t] == 2) {
+              if (sxtype[t] == 1 && mb >= 16000) { ayobi(sa[t] + 1500, 44000, 0, -2000, 0, 4, 0); }
+              else if (sxtype[t] == 2) {
                 ayobi(sa[t] + 4500, 30000, 0, -1600, 0, 5, 0); soundplay(10); sxtype[t] = 3; sa[t] -= 12000;
-              } else if (sxtype[t] == 3) {
+              }
+              else if (sxtype[t] == 3) {
                 sa[t] += 12000; sxtype[t] = 4;
-              } else if (sxtype[t] == 4) {
+              }
+              else if (sxtype[t] == 4) {
                 ayobi(sa[t] + 4500, 30000, 0, -1600, 0, 5, 0); soundplay(10); sxtype[t] = 5; sxtype[t] = 0;
-              } else if (sxtype[t] == 7) {
+              }
+              else if (sxtype[t] == 7) {
                 mainmsgtype = 1;
-              } else if (sxtype[t] == 8) {
+              }
+              else if (sxtype[t] == 8) {
                 ayobi(sa[t] - 5000 - 3000 * 1, 26000, 0, -1600, 0, 5, 0); soundplay(10);
-              } else if (sxtype[t] == 9) {
+              }
+              else if (sxtype[t] == 9) {
                 for (t3 = 0; t3 <= 2; t3++) {
                   ayobi(sa[t] + t3 * 3000 + 3000, 48000, 0, -6000, 0, 3, 0);
                 }
               }
-              if (sxtype[t] == 10) {sa[t] -= 5 * 30 * 100; stype[t] = 101; }
+              if (sxtype[t] == 10) { sa[t] -= 5 * 30 * 100; stype[t] = 101; }
 
               if (sxtype[t] == 12) {
                 for (t3 = 1; t3 <= 3; t3++) {
@@ -2133,7 +2628,7 @@ void Mainprogram() {
                 bgmstop(); mtype = 302; mtm = 0; soundplay(16);
               }
 
-              if (sxtype[t] != 3 && sxtype[t] != 4 && sxtype[t] != 10) {sa[t] = -800000000; }
+              if (sxtype[t] != 3 && sxtype[t] != 4 && sxtype[t] != 10) { sa[t] = -800000000; }
             }
 
             if (stype[t] == 103) {
@@ -2158,15 +2653,17 @@ void Mainprogram() {
               }
             }
 
-            if (stype[t] == 105 && mzimen == 0 && md >= 0) {ta[1] -= 1000; ta[2] += 1000; sxtype[t]++; if (sxtype[t] >= 3) sa[t] = -8000000; }
+            if (stype[t] == 105 && mzimen == 0 && md >= 0) { ta[1] -= 1000; ta[2] += 1000; sxtype[t]++; if (sxtype[t] >= 3) sa[t] = -8000000; }
 
 
-            if (stype[t] == 300 && mtype == 0 && mb < xx[9] + sd[t] + xx[0] - 3000 && mhp >= 1) {bgmstop(); mtype = 300; mtm = 0; ma = sa[t] - fx - 2000; soundplay(11); }
+            if (stype[t] == 300 && mtype == 0 && mb < xx[9] + sd[t] + xx[0] - 3000 && mhp >= 1) { bgmstop(); mtype = 300; mtm = 0; ma = sa[t] - fx - 2000; soundplay(11); }
 
             //中間ゲート
             if (stype[t] == 500 && mtype == 0 && mhp >= 1) {
               tyuukan += 1;
               sa[t] = -80000000;
+              dlm_checkpoint();
+              dlm_save();
             }
 
           }
@@ -2206,7 +2703,7 @@ void Mainprogram() {
       xx[8] = xx[10] - fx; xx[9] = xx[11] - fy;
       if (xx[8] + xx[12] >= -10 - 12000 && xx[8] <= fxmax + 12100) {
         xx[0] = 500; xx[1] = 1200; xx[2] = 1000; xx[7] = 2000;
-        if (md >= 100) {xx[1] = 900 + md; }
+        if (md >= 100) { xx[1] = 900 + md; }
 
         //if (srtype[t]==1){xx[0]=600;}
         if (md > xx[1]) xx[1] = md + 100;
@@ -2241,18 +2738,19 @@ void Mainprogram() {
            */
           break;
 
-        /*
-           case 4:
-           if (srmove[t]==0){srmuki[t]=0;}else{srmuki[t]=1;}
-           if (sra[t]-fx<-1100-src[t]){sra[t]=fymax+fx+scrollx;}
-           if (sra[t]-fx>24000+scrollx){sra[t]=-1100-src[t]+fx;}
-           break;
-         */
+          /*
+             case 4:
+             if (srmove[t]==0){srmuki[t]=0;}else{srmuki[t]=1;}
+             if (sra[t]-fx<-1100-src[t]){sra[t]=fymax+fx+scrollx;}
+             if (sra[t]-fx>24000+scrollx){sra[t]=-1100-src[t]+fx;}
+             break;
+           */
 
         case 5:
-          if (srmove[t] == 0) {srmuki[t] = 0; } else {srmuki[t] = 1; }
-          if (srb[t] - fy < -2100) {srb[t] = fymax + fy + scrolly + 2000; }
-          if (srb[t] - fy > fymax + scrolly + 2000) {srb[t] = -2100 + fy; }
+          if (srmove[t] == 0) { srmuki[t] = 0; }
+          else { srmuki[t] = 1; }
+          if (srb[t] - fy < -2100) { srb[t] = fymax + fy + scrolly + 2000; }
+          if (srb[t] - fy > fymax + scrolly + 2000) { srb[t] = -2100 + fy; }
           break;
 
         case 6:
@@ -2273,11 +2771,12 @@ void Mainprogram() {
             mb = xx[9] - mnobib + 100;
             //if (sracttype[t]!=7)mzimen=1;
 
-            if (srtype[t] == 1) {sre[10] = 900; sre[11] = 900; }
+            if (srtype[t] == 1) { sre[10] = 900; sre[11] = 900; }
 
             if (srsp[t] != 12) {
               mzimen = 1; md = 0;
-            } else {
+            }
+            else {
               //すべり
               //md=0;mrzimen=1;mzimen=1;
               md = -800;
@@ -2294,7 +2793,7 @@ void Mainprogram() {
                }
              */
 
-            //落下
+             //落下
             if ((sracttype[t] == 1) && sron[t] == 0) sron[t] = 1;
 
             if ((sracttype[t] == 1 && sron[t] == 1) || sracttype[t] == 3 || sracttype[t] == 5) {
@@ -2307,8 +2806,8 @@ void Mainprogram() {
             }
 
             if (sracttype[t] == 7) {
-              if (actaon[2] != 1) {md = -600; mb -= 810; }
-              if (actaon[2] == 1) {mb -= 400; md = -1400; mjumptm = 10; }
+              if (actaon[2] != 1) { md = -600; mb -= 810; }
+              if (actaon[2] == 1) { mb -= 400; md = -1400; mjumptm = 10; }
             }
 
 
@@ -2326,7 +2825,7 @@ void Mainprogram() {
 
             if (srsp[t] == 2) {
               mc = -2400; srmove[t] += 1;
-              if (srmove[t] >= 100) {mhp = 0; mmsgtype = 53; mmsgtm = 30; srmove[t] = -5000; }
+              if (srmove[t] >= 100) { mhp = 0; mmsgtype = 53; mmsgtm = 30; srmove[t] = -5000; }
             }
 
 
@@ -2335,21 +2834,21 @@ void Mainprogram() {
 
 
           //疲れ初期化
-          if (srsp[t] == 2 && mc != -2400 && srmove[t] > 0) {srmove[t]--; }
+          if (srsp[t] == 2 && mc != -2400 && srmove[t] > 0) { srmove[t]--; }
 
           if (srsp[t] == 11) {
-            if (ma + mnobia > xx[8] + xx[0] - 2000 && ma < xx[8] + xx[12] - xx[0]) {sron[t] = 1; } // && mb+mnobib>xx[9]-1000 && mb+mnobib<xx[9]+xx[1]+2000)
-            if (sron[t] == 1) {srf[t] = 60; srb[t] += sre[t]; }
+            if (ma + mnobia > xx[8] + xx[0] - 2000 && ma < xx[8] + xx[12] - xx[0]) { sron[t] = 1; } // && mb+mnobib>xx[9]-1000 && mb+mnobib<xx[9]+xx[1]+2000)
+            if (sron[t] == 1) { srf[t] = 60; srb[t] += sre[t]; }
           }
 
 
           //トゲ(下)
           if (ma + mnobia > xx[8] + xx[0] && ma<xx[8] + xx[12] - xx[0] && mb>xx[9] - xx[1] / 2 && mb < xx[9] + xx[1] / 2) {
-            if (srtype[t] == 2) {if (md < 0) {md = -md; } mb += 110; if (mmutekitm <= 0) mhp -= 1; if (mmutekion != 1) mmutekitm = 40; }
+            if (srtype[t] == 2) { if (md < 0) { md = -md; } mb += 110; if (mmutekitm <= 0) mhp -= 1; if (mmutekion != 1) mmutekitm = 40; }
           }
           //落下
           if (sracttype[t] == 6) {
-            if (ma + mnobia > xx[8] + xx[0] && ma < xx[8] + xx[12] - xx[0]) {sron[t] = 1; }
+            if (ma + mnobia > xx[8] + xx[0] && ma < xx[8] + xx[12] - xx[0]) { sron[t] = 1; }
           }
 
         }      //!
@@ -2418,7 +2917,8 @@ void Mainprogram() {
         ea[t] += ec[t]; eb[t] += ed[t];
         ec[t] += ee[t]; ed[t] += ef[t];
 
-      } else {ea[t] = -9000000; }
+      }
+      else { ea[t] = -9000000; }
 
     }        //emax
 
@@ -2431,21 +2931,21 @@ void Mainprogram() {
     for (t = 0; t < bmax; t++) {
       if (ba[t] >= -80000) {
 
-        if (btm[t] >= 0) {btm[t] = btm[t] - 1; }
+        if (btm[t] >= 0) { btm[t] = btm[t] - 1; }
 
         for (tt = 0; tt <= 1; tt++) {
           xx[0] = 0; xx[1] = 0;
 
 
-          if (bz[t] == 0 && btm[t] < 0 && ba[t] - fx >= fxmax + 2000 && ba[t] - fx < fxmax + 2000 + mc && tt == 0) {xx[0] = 1; amuki[aco] = 0; } // && mmuki==1
-          if (bz[t] == 0 && btm[t] < 0 && ba[t] - fx >= -400 - anx[btype[t]] + mc && ba[t] - fx < -400 - anx[btype[t]] && tt == 1) {xx[0] = 1; xx[1] = 1; amuki[aco] = 1; } // && mmuki==0
-          if (bz[t] == 1 && ba[t] - fx >= 0 - anx[btype[t]] && ba[t] - fx <= fxmax + 4000 && bb[t] - fy >= -9000 && bb[t] - fy <= fymax + 4000 && btm[t] < 0) {xx[0] = 1; bz[t] = 0; } // && xza<=5000// && tyuukan!=1
+          if (bz[t] == 0 && btm[t] < 0 && ba[t] - fx >= fxmax + 2000 && ba[t] - fx < fxmax + 2000 + mc && tt == 0) { xx[0] = 1; amuki[aco] = 0; } // && mmuki==1
+          if (bz[t] == 0 && btm[t] < 0 && ba[t] - fx >= -400 - anx[btype[t]] + mc && ba[t] - fx < -400 - anx[btype[t]] && tt == 1) { xx[0] = 1; xx[1] = 1; amuki[aco] = 1; } // && mmuki==0
+          if (bz[t] == 1 && ba[t] - fx >= 0 - anx[btype[t]] && ba[t] - fx <= fxmax + 4000 && bb[t] - fy >= -9000 && bb[t] - fy <= fymax + 4000 && btm[t] < 0) { xx[0] = 1; bz[t] = 0; } // && xza<=5000// && tyuukan!=1
           //if (bz[t]==2){xx[0]=0;xx[1]=0;}
           //if (btype[t]>=100){bz[t]=2;}
 
           if (xx[0] == 1) {     //400
             btm[t] = 401; xx[0] = 0;   //if (btype[t]>=20 && btype[t]<=23){btm[t]=90000;}
-            if (btype[t] >= 10) {btm[t] = 9999999; }
+            if (btype[t] >= 10) { btm[t] = 9999999; }
 
 
             //10
@@ -2477,12 +2977,12 @@ void Mainprogram() {
           xx[10] = 100;
           break;
 
-        //こうらの敵
+          //こうらの敵
         case 1:
           xx[10] = 100;
           break;
 
-        //こうら
+          //こうら
         case 2:
           xx[10] = 0; xx[17] = 800;
           if (axtype[t] >= 1) xx[10] = xx[17];
@@ -2494,7 +2994,7 @@ void Mainprogram() {
               xx[0] = 250; xx[5] = -800; xx[12] = 0; xx[1] = 1600;
               xx[8] = aa[tt] - fx; xx[9] = ab[tt] - fy;
               if (t != tt) {
-                if (aa[t] + anobia[t] - fx > xx[8] + xx[0] * 2 && aa[t] - fx<xx[8] + anobia[tt] - xx[0] *2 && ab[t] + anobib[t] - fy>xx[9] + xx[5] && ab[t] + anobib[t] - fy < xx[9] + xx[1] * 3 + xx[12] + 1500) {
+                if (aa[t] + anobia[t] - fx > xx[8] + xx[0] * 2 && aa[t] - fx<xx[8] + anobia[tt] - xx[0] * 2 && ab[t] + anobib[t] - fy>xx[9] + xx[5] && ab[t] + anobib[t] - fy < xx[9] + xx[1] * 3 + xx[12] + 1500) {
                   aa[tt] = -800000; soundplay(6);
                 }
               }
@@ -2503,7 +3003,7 @@ void Mainprogram() {
 
           break;
 
-        //あらまき
+          //あらまき
         case 3:
           azimentype[t] = 0;        //end();
           if (axtype[t] == 0) {
@@ -2515,7 +3015,7 @@ void Mainprogram() {
           //xx[10]=100;
           break;
 
-        //スーパージエン
+          //スーパージエン
         case 4:
           xx[10] = 120;
           xx[0] = 250;
@@ -2523,32 +3023,32 @@ void Mainprogram() {
           xx[9] = ab[t] - fy;
           if (atm[t] >= 0) atm[t]--;
           if (abs(ma + mnobia - xx[8] - xx[0] * 2) < 9000 &&
-              abs(ma < xx[8] - anobia[t] + xx[0] * 2) < 3000 &&
-              md <= -600 && atm[t] <= 0) {
+            abs(ma < xx[8] - anobia[t] + xx[0] * 2) < 3000 &&
+            md <= -600 && atm[t] <= 0) {
             if (axtype[t] == 1 && mzimen == 0 && axzimen[t] == 1) {
               ad[t] = -1600; atm[t] = 40; ab[t] -= 1000;
             }
           }          //
           break;
 
-        //クマー
+          //クマー
         case 5:
           xx[10] = 160;
           //azimentype[t]=2;
           break;
 
-        //デフラグさん
+          //デフラグさん
         case 6:
-          if (azimentype[t] == 30) {ad[t] = -1600; ab[t] += ad[t]; }
+          if (azimentype[t] == 30) { ad[t] = -1600; ab[t] += ad[t]; }
 
           xx[10] = 120;
           if (atm[t] >= 10) {
             atm[t]++;
             if (mhp >= 1) {
-              if (atm[t] <= 19) {ma = xx[0]; mb = xx[1] - 3000; mtype = 0; }
+              if (atm[t] <= 19) { ma = xx[0]; mb = xx[1] - 3000; mtype = 0; }
               xx[10] = 0;
-              if (atm[t] == 20) {mc = 700; mkeytm = 24; md = -1200; mb = xx[1] - 1000 - 3000; amuki[t] = 1; if (axtype[t] == 1) {mc = 840; axtype[t] = 0; }}
-              if (atm[t] == 40) {amuki[t] = 0; atm[t] = 0; }
+              if (atm[t] == 20) { mc = 700; mkeytm = 24; md = -1200; mb = xx[1] - 1000 - 3000; amuki[t] = 1; if (axtype[t] == 1) { mc = 840; axtype[t] = 0; } }
+              if (atm[t] == 40) { amuki[t] = 0; atm[t] = 0; }
             }
           }
 
@@ -2557,29 +3057,29 @@ void Mainprogram() {
             for (tt = 0; tt < smax; tt++) {
               if (stype[tt] == 300) {
                 //sa[sco]=xx[21]*100;sb[sco]=xx[22]*100;sc[sco]=3000;sd[sco]=(12-t)*3000;stype[sco]=300;sco++;
-                if (aa[t] - fx >= -8000 && aa[t] >= sa[tt] + 2000 && aa[t] <= sa[tt] + 3600 && axzimen[t] == 1) {sa[tt] = -800000; atm[t] = 100; }
+                if (aa[t] - fx >= -8000 && aa[t] >= sa[tt] + 2000 && aa[t] <= sa[tt] + 3600 && axzimen[t] == 1) { sa[tt] = -800000; atm[t] = 100; }
               }
             }
 
             if (atm[t] == 100) {
               eyobi(aa[t] + 1200 - 1200, ab[t] + 3000 - 10 * 3000 - 1500, 0, 0, 0, 0, 1000, 10 * 3000 - 1200, 4, 20);
-              if (mtype == 300) {mtype = 0; soundstop(11); bgmchange(100); bgmplay(); }
+              if (mtype == 300) { mtype = 0; soundstop(11); bgmchange(100); bgmplay(); }
               for (t1 = 0; t1 < smax; t1++) {
                 if (stype[t1] == 104) sa[t1] = -80000000;
               }
             }
-            if (atm[t] == 120) {eyobi(aa[t] + 1200 - 1200, ab[t] + 3000 - 10 * 3000 - 1500, 600, -1200, 0, 160, 1000, 10 * 3000 - 1200, 4, 240); amuki[t] = 1; }
+            if (atm[t] == 120) { eyobi(aa[t] + 1200 - 1200, ab[t] + 3000 - 10 * 3000 - 1500, 600, -1200, 0, 160, 1000, 10 * 3000 - 1200, 4, 240); amuki[t] = 1; }
             //mc=700;mkeytm=24;md=-1200;mb=xx[1]-1000-3000;amuki[t]=1;if (axtype[t]==1){mc=840;axtype[t]=0;}}
-            if (atm[t] == 140) {amuki[t] = 0; atm[t] = 0; }
+            if (atm[t] == 140) { amuki[t] = 0; atm[t] = 0; }
           }
-          if (atm[t] >= 220) {atm[t] = 0; amuki[t] = 0; }
+          if (atm[t] >= 220) { atm[t] = 0; amuki[t] = 0; }
 
           //他の敵を投げる
           for (tt = 0; tt < amax; tt++) {
             xx[0] = 250; xx[5] = -800; xx[12] = 0; xx[1] = 1600;
             xx[8] = aa[tt] - fx; xx[9] = ab[tt] - fy;
             if (t != tt && atype[tt] >= 100) {
-              if (aa[t] + anobia[t] - fx > xx[8] + xx[0] * 2 && aa[t] - fx<xx[8] + anobia[tt] - xx[0] *2 && ab[t] + anobib[t] - fy>xx[9] + xx[5] && ab[t] + anobib[t] - fy < xx[9] + xx[1] * 3 + xx[12] + 1500) {
+              if (aa[t] + anobia[t] - fx > xx[8] + xx[0] * 2 && aa[t] - fx<xx[8] + anobia[tt] - xx[0] * 2 && ab[t] + anobib[t] - fy>xx[9] + xx[5] && ab[t] + anobib[t] - fy < xx[9] + xx[1] * 3 + xx[12] + 1500) {
                 //aa[tt]=-800000;
                 amuki[tt] = 1; aa[tt] = aa[t] + 300; ab[tt] = ab[t] - 3000; abrocktm[tt] = 120; //aa[tt]=0;
                 atm[t] = 200; amuki[t] = 1;
@@ -2589,7 +3089,7 @@ void Mainprogram() {
 
           break;
 
-        //ジエン大砲
+          //ジエン大砲
         case 7:
           azimentype[t] = 0;
           xx[10] = 0; xx[11] = 400;
@@ -2599,12 +3099,12 @@ void Mainprogram() {
           if (axtype[t] == 3) ab[t] += xx[11];
           break;
 
-        //スーパーブーン
+          //スーパーブーン
         case 8:
           azimentype[t] = 0;
           xx[22] = 20;
-          if (atm[t] == 0) {af[t] += xx[22]; ad[t] += xx[22]; }
-          if (atm[t] == 1) {af[t] -= xx[22]; ad[t] -= xx[22]; }
+          if (atm[t] == 0) { af[t] += xx[22]; ad[t] += xx[22]; }
+          if (atm[t] == 1) { af[t] -= xx[22]; ad[t] -= xx[22]; }
           if (ad[t] > 300) ad[t] = 300;
           if (ad[t] < -300) ad[t] = -300;
           if (af[t] >= 1200) atm[t] = 1;
@@ -2612,22 +3112,22 @@ void Mainprogram() {
           ab[t] += ad[t];
           //atype[t]=151;
           break;
-        //ノーマルブーン
+          //ノーマルブーン
         case 151:
           azimentype[t] = 2;
           break;
 
-        //ファイアー玉
+          //ファイアー玉
         case 9:
           azimentype[t] = 5;
           ab[t] += ad[t]; ad[t] += 100;
-          if (ab[t] >= fymax + 1000) {ad[t] = 900; }
+          if (ab[t] >= fymax + 1000) { ad[t] = 900; }
           if (ab[t] >= fymax + 12000) {
             ab[t] = fymax; ad[t] = -2600;
           }
           break;
 
-        //ファイアー
+          //ファイアー
         case 10:
           azimentype[t] = 0;
           xx[10] = 0; xx[11] = 400;
@@ -2636,17 +3136,17 @@ void Mainprogram() {
           break;
 
 
-        //モララー
+          //モララー
         case 30:
           atm[t] += 1;
           if (axtype[t] == 0) {
-            if (atm[t] == 50 && mb >= 6000) {ac[t] = 300; ad[t] -= 1600; ab[t] -= 1000; }
+            if (atm[t] == 50 && mb >= 6000) { ac[t] = 300; ad[t] -= 1600; ab[t] -= 1000; }
 
             for (tt = 0; tt < amax; tt++) {
               xx[0] = 250; xx[5] = -800; xx[12] = 0; xx[1] = 1600;
               xx[8] = aa[tt] - fx; xx[9] = ab[tt] - fy;
               if (t != tt && atype[tt] == 102) {
-                if (aa[t] + anobia[t] - fx > xx[8] + xx[0] * 2 && aa[t] - fx<xx[8] + anobia[tt] - xx[0] *2 && ab[t] + anobib[t] - fy>xx[9] + xx[5] && ab[t] + anobib[t] - fy < xx[9] + xx[1] * 3 + xx[12] + 1500) {
+                if (aa[t] + anobia[t] - fx > xx[8] + xx[0] * 2 && aa[t] - fx<xx[8] + anobia[tt] - xx[0] * 2 && ab[t] + anobib[t] - fy>xx[9] + xx[5] && ab[t] + anobib[t] - fy < xx[9] + xx[1] * 3 + xx[12] + 1500) {
                   aa[tt] = -800000; axtype[t] = 1; ad[t] = -1600;
                   amsgtm[t] = 30; amsgtype[t] = 25;
                 }
@@ -2659,17 +3159,17 @@ void Mainprogram() {
           }
           break;
 
-        //レーザー
+          //レーザー
         case 79:
           azimentype[t] = 0;
           xx[10] = 1600;
-          if (axtype[t] == 1) {xx[10] = 1200; ab[t] -= 200; }
-          if (axtype[t] == 2) {xx[10] = 1200; ab[t] += 200; }
-          if (axtype[t] == 3) {xx[10] = 900; ab[t] -= 600; }
-          if (axtype[t] == 4) {xx[10] = 900; ab[t] += 600; }
+          if (axtype[t] == 1) { xx[10] = 1200; ab[t] -= 200; }
+          if (axtype[t] == 2) { xx[10] = 1200; ab[t] += 200; }
+          if (axtype[t] == 3) { xx[10] = 900; ab[t] -= 600; }
+          if (axtype[t] == 4) { xx[10] = 900; ab[t] += 600; }
           break;
 
-        //雲の敵
+          //雲の敵
         case 80:
           azimentype[t] = 0;
           //xx[10]=100;
@@ -2690,24 +3190,24 @@ void Mainprogram() {
 
         case 85:
           xx[23] = 400;
-          if (axtype[t] == 0) {axtype[t] = 1; amuki[t] = 1; }
-          if (mb >= 30000 && ma >= aa[t] - 3000 * 5 - fx && ma <= aa[t] - fx && axtype[t] == 1) {axtype[t] = 5; amuki[t] = 0; }
-          if (mb >= 24000 && ma <= aa[t] + 3000 * 8 - fx && ma >= aa[t] - fx && axtype[t] == 1) {axtype[t] = 5; amuki[t] = 1; }
+          if (axtype[t] == 0) { axtype[t] = 1; amuki[t] = 1; }
+          if (mb >= 30000 && ma >= aa[t] - 3000 * 5 - fx && ma <= aa[t] - fx && axtype[t] == 1) { axtype[t] = 5; amuki[t] = 0; }
+          if (mb >= 24000 && ma <= aa[t] + 3000 * 8 - fx && ma >= aa[t] - fx && axtype[t] == 1) { axtype[t] = 5; amuki[t] = 1; }
           if (axtype[t] == 5) xx[10] = xx[23];
           break;
 
         case 86:
           azimentype[t] = 4;
           xx[23] = 1000;
-          if (ma >= aa[t] - fx - mnobia - xx[26] && ma <= aa[t] - fx + anobia[t] + xx[26]) {atm[t] = 1; }
-          if (atm[t] == 1) {ab[t] += 1200; }
+          if (ma >= aa[t] - fx - mnobia - xx[26] && ma <= aa[t] - fx + anobia[t] + xx[26]) { atm[t] = 1; }
+          if (atm[t] == 1) { ab[t] += 1200; }
           break;
 
-        //ファイアバー
+          //ファイアバー
         case 87:
           azimentype[t] = 0;
           if (aa[t] % 10 != 1) atm[t] += 6;
-          else {atm[t] -= 6; }
+          else { atm[t] -= 6; }
           xx[25] = 2;
           if (atm[t] > 360 * xx[25]) atm[t] -= 360 * xx[25];
           if (atm[t] < 0) atm[t] += 360 * xx[25];
@@ -2730,7 +3230,7 @@ void Mainprogram() {
         case 88:
           azimentype[t] = 0;
           if (aa[t] % 10 != 1) atm[t] += 6;
-          else {atm[t] -= 6; }
+          else { atm[t] -= 6; }
           xx[25] = 2;
           if (atm[t] > 360 * xx[25]) atm[t] -= 360 * xx[25];
           if (atm[t] < 0) atm[t] += 360 * xx[25];
@@ -2760,7 +3260,7 @@ void Mainprogram() {
           break;
 
 
-        //おいしいキノコ
+          //おいしいキノコ
         case 100:
           azimentype[t] = 1;
           xx[10] = 100;
@@ -2771,7 +3271,7 @@ void Mainprogram() {
               xx[0] = 250; xx[5] = -800; xx[12] = 0; xx[1] = 1600;
               xx[8] = aa[tt] - fx; xx[9] = ab[tt] - fy;
               if (t != tt) {
-                if (aa[t] + anobia[t] - fx > xx[8] + xx[0] * 2 && aa[t] - fx<xx[8] + anobia[tt] - xx[0] *2 && ab[t] + anobib[t] - fy>xx[9] + xx[5] && ab[t] + anobib[t] - fy < xx[9] + xx[1] * 3 + xx[12]) {
+                if (aa[t] + anobia[t] - fx > xx[8] + xx[0] * 2 && aa[t] - fx<xx[8] + anobia[tt] - xx[0] * 2 && ab[t] + anobib[t] - fy>xx[9] + xx[5] && ab[t] + anobib[t] - fy < xx[9] + xx[1] * 3 + xx[12]) {
                   if (atype[tt] == 0 || atype[tt] == 4) {
                     atype[tt] = 90;      //soundplay(6);
                     anobia[tt] = 6400; anobib[tt] = 6300; axtype[tt] = 0;
@@ -2785,14 +3285,14 @@ void Mainprogram() {
 
           break;
 
-        //毒キノコ
+          //毒キノコ
         case 102:
           azimentype[t] = 1;
           xx[10] = 100;
           if (axtype[t] == 1) xx[10] = 200;
           break;
 
-        //悪スター
+          //悪スター
         case 110:
           azimentype[t] = 1;
           xx[10] = 200;
@@ -2946,7 +3446,7 @@ void Mainprogram() {
 
         //if (mc>xx[0]){mc=xx[0];}
         //if (mc<-xx[0]){mc=-xx[0];}
-        if (ad[t] > xx[1] && azimentype[t] != 5) {ad[t] = xx[1]; }
+        if (ad[t] > xx[1] && azimentype[t] != 5) { ad[t] = xx[1]; }
 
 
         //行動
@@ -2962,14 +3462,16 @@ void Mainprogram() {
 
           //移動
           aa[t] += ac[t];
-          if (azimentype[t] >= 1 && azimentype[t] <= 3) {ab[t] += ad[t]; ad[t] += 120; } //ad[t]+=180;
+          if (azimentype[t] >= 1 && azimentype[t] <= 3) { ab[t] += ad[t]; ad[t] += 120; } //ad[t]+=180;
 
 
           if (axzimen[t] == 1) {
             xx[0] = 100;
-            if (ac[t] >= 200) {ac[t] -= xx[0]; } else if (ac[t] <= -200) {
+            if (ac[t] >= 200) { ac[t] -= xx[0]; }
+            else if (ac[t] <= -200) {
               ac[t] += xx[0];
-            } else {ac[t] = 0; }
+            }
+            else { ac[t] = 0; }
           }
 
           axzimen[t] = 0;
@@ -2989,9 +3491,9 @@ void Mainprogram() {
         //ブロックから出現するさい
         if (abrocktm[t] > 0) {
           abrocktm[t]--;
-          if (abrocktm[t] < 100) {ab[t] -= 180; }
+          if (abrocktm[t] < 100) { ab[t] -= 180; }
           if (abrocktm[t] > 100) {}
-          if (abrocktm[t] == 100) {ab[t] -= 800; ad[t] = -1200; ac[t] = 700; abrocktm[t] = 0; }
+          if (abrocktm[t] == 100) { ab[t] -= 800; ad[t] = -1200; ac[t] = 700; abrocktm[t] = 0; }
         }      //abrocktm[t]>0
 
 
@@ -3006,7 +3508,7 @@ void Mainprogram() {
         xx[12] = 0; if (md >= 100) xx[12] = md;
         xx[25] = 0;
 
-        if (ma + mnobia > xx[8] + xx[0] * 2 && ma<xx[8] + anobia[t] - xx[0] *2 && mb + mnobib>xx[9] - xx[5] && mb + mnobib < xx[9] + xx[1] + xx[12] && (mmutekitm <= 0 || md >= 100) && abrocktm[t] <= 0) {
+        if (ma + mnobia > xx[8] + xx[0] * 2 && ma<xx[8] + anobia[t] - xx[0] * 2 && mb + mnobib>xx[9] - xx[5] && mb + mnobib < xx[9] + xx[1] + xx[12] && (mmutekitm <= 0 || md >= 100) && abrocktm[t] <= 0) {
           if (atype[t] != 4 && atype[t] != 9 && atype[t] != 10 && (atype[t] <= 78 || atype[t] == 85) && mzimen != 1 && mtype != 200) { // && atype[t]!=4 && atype[t]!=7){
 
             if (atype[t] == 0) {
@@ -3023,10 +3525,13 @@ void Mainprogram() {
             }
             //こうら
             else if (atype[t] == 2 && md >= 0) {
-              if (axtype[t] == 1 || axtype[t] == 2) {axtype[t] = 0; } else if (axtype[t] == 0) {
+              if (axtype[t] == 1 || axtype[t] == 2) { axtype[t] = 0; }
+              else if (axtype[t] == 0) {
                 if (ma + mnobia > xx[8] + xx[0] * 2 && ma < xx[8] + anobia[t] / 2 - xx[0] * 4) {
                   axtype[t] = 1; amuki[t] = 1;
-                } else {axtype[t] = 1; amuki[t] = 0; }}
+                }
+                else { axtype[t] = 1; amuki[t] = 0; }
+              }
             }
             if (atype[t] == 3) {
               xx[25] = 1;
@@ -3049,13 +3554,13 @@ void Mainprogram() {
             //}
 
             if (atype[t] != 85) {
-              if (xx[25] == 0) {soundplay(5); mb = xx[9] - 1000 - anobib[t]; md = -1000; }
+              if (xx[25] == 0) { soundplay(5); mb = xx[9] - 1000 - anobib[t]; md = -1000; }
             }
             if (atype[t] == 85) {
-              if (xx[25] == 0) {soundplay(5); mb = xx[9] - 4000; md = -1000; axtype[t] = 5; }
+              if (xx[25] == 0) { soundplay(5); mb = xx[9] - 4000; md = -1000; axtype[t] = 5; }
             }
 
-            if (actaon[2] == 1) {md = -1600; actaon[2] = 0; }
+            if (actaon[2] == 1) { md = -1600; actaon[2] = 0; }
           }
           //if (atype[t]==200){mb=xx[9]-900-anobib[t];md=-2400;}
         }
@@ -3072,7 +3577,7 @@ void Mainprogram() {
         if (atype[t] == 82 || atype[t] == 83 || atype[t] == 84) xx[16] = -3200;
         if (atype[t] == 85) xx[16] = -anobib[t] + 6000;
         if (ma + mnobia > xx[8] + xx[4] && ma < xx[8] + anobia[t] - xx[4] && mb<xx[9] + anobib[t] + xx[15] && mb + mnobib>xx[9] + anobib[t] - xx[0] + xx[16] && anotm[t] <= 0 && abrocktm[t] <= 0) {
-          if (mmutekion == 1) {aa[t] = -9000000; }
+          if (mmutekion == 1) { aa[t] = -9000000; }
           if (mmutekitm <= 0 && (atype[t] <= 99 || atype[t] >= 200)) {
             if (mmutekion != 1 && mtype != 200) {
               //if (mmutekitm<=0)
@@ -3163,10 +3668,12 @@ void Mainprogram() {
                 if (axtype[t] == 0) {
                   if (ma + mnobia > xx[8] + xx[0] * 2 && ma < xx[8] + anobia[t] / 2 - xx[0] * 4) {
                     axtype[t] = 1; amuki[t] = 1; aa[t] = ma + mnobia + fx + mc; mmutekitm = 5;
-                  } else {
+                  }
+                  else {
                     axtype[t] = 1; amuki[t] = 0; aa[t] = ma - anobia[t] + fx - mc; mmutekitm = 5;
                   }
-                } else {mhp -= 1; }      //mmutekitm=40;}
+                }
+                else { mhp -= 1; }      //mmutekitm=40;}
               }
 
 
@@ -3176,12 +3683,12 @@ void Mainprogram() {
           //アイテム
           if (atype[t] >= 100 && atype[t] <= 199) {
 
-            if (atype[t] == 100 && axtype[t] == 0) {mmsgtm = 30; mmsgtype = 1; soundplay(9); }
-            if (atype[t] == 100 && axtype[t] == 1) {mmsgtm = 30; mmsgtype = 2; soundplay(9); }
-            if (atype[t] == 100 && axtype[t] == 2) {mnobia = 5200; mnobib = 7300; soundplay(9); ma -= 1100; mb -= 4000; mtype = 1; mhp = 50000000; }
+            if (atype[t] == 100 && axtype[t] == 0) { mmsgtm = 30; mmsgtype = 1; soundplay(9); }
+            if (atype[t] == 100 && axtype[t] == 1) { mmsgtm = 30; mmsgtype = 2; soundplay(9); }
+            if (atype[t] == 100 && axtype[t] == 2) { mnobia = 5200; mnobib = 7300; soundplay(9); ma -= 1100; mb -= 4000; mtype = 1; mhp = 50000000; }
 
-            if (atype[t] == 101) {mhp -= 1; mmsgtm = 30; mmsgtype = 11; }
-            if (atype[t] == 102) {mhp -= 1; mmsgtm = 30; mmsgtype = 10; }
+            if (atype[t] == 101) { mhp -= 1; mmsgtm = 30; mmsgtype = 11; }
+            if (atype[t] == 102) { mhp -= 1; mmsgtm = 30; mmsgtype = 10; }
 
 
             //?ボール
@@ -3208,7 +3715,7 @@ void Mainprogram() {
 
 
 
-            if (atype[t] == 110) {mhp -= 1; mmsgtm = 30; mmsgtype = 3; }
+            if (atype[t] == 110) { mhp -= 1; mmsgtm = 30; mmsgtype = 3; }
 
             /*
                if (atype[t]==101){mmutekitm=120;mmutekion=1;}
@@ -3239,7 +3746,8 @@ void Mainprogram() {
 
 
 
-      } else {aa[t] = -9000000; }
+      }
+      else { aa[t] = -9000000; }
 
     }  //t
 
@@ -3254,7 +3762,7 @@ void Mainprogram() {
     //x
     if (kscroll != 1 && kscroll != 2) {
       xx[2] = mascrollmax; xx[3] = 0;
-      xx[1] = xx[2]; if (ma > xx[1] && fzx < scrollx) {xx[5] = ma - xx[1]; ma = xx[1]; fx += xx[5]; fzx += xx[5]; if (xx[1] <= 5000) xx[3] = 1; }
+      xx[1] = xx[2]; if (ma > xx[1] && fzx < scrollx) { xx[5] = ma - xx[1]; ma = xx[1]; fx += xx[5]; fzx += xx[5]; if (xx[1] <= 5000) xx[3] = 1; }
       //if (kscroll!=5){//戻りなし
       //xx[1]=xx[2]-500;if (ma<xx[1] && fzx>700){xx[5]=xx[1]-ma;ma=xx[1];fx-=xx[5];fzx-=xx[5];}
       //}
@@ -3264,8 +3772,10 @@ void Mainprogram() {
 
 
     // update score/
-    if (stc < 5) {
-      score = (sta - 1) * 40000 + (stb - 1) * 10000 + stc * 1000 + fx / 1000;
+    if (stageid > 0) {
+      save.time++;
+      scorepos = max(scorepos, fx + ma);
+      score = save.score + (scorepos) / 1000 * 100;
     }
   }    //if (mainproc==1)
 
@@ -3303,6 +3813,7 @@ void Mainprogram() {
       xx[30] = 1800;
 
       for (t = 0; t <= xx[7]; t += 1) {
+        xx[12 + t] += getscreenheight() - 420;
         xx[12 + t] *= 100;
       }
     }
@@ -3316,17 +3827,8 @@ void Mainprogram() {
       if (ending == 1) {
         ending = 0;
         maintm = 2;
-        if (sta == 1) { bgmstop(); soundplay(12); }
-        else { 
-          updatescore(score, nokori);
-          mainproc = 100; nokori = 2; 
-        }
-      }
-    }
-
-    if (ending == 0) {
-      if (maintm > 140) {
-        maintm = 0; zxon = 0; mainproc = 10; mtm = 0; mkeytm = 0; nokori--;
+        dlm_score(2, score);
+        dlm_title();
       }
     }
   }    //mainproc==2
@@ -3334,16 +3836,15 @@ void Mainprogram() {
 
   if (mainproc == 10) {
     maintm++;
-    if (fast == 1) maintm += 2;
 
-    if (nokori == 2) {
+    if (nopause) {
       if (maintm >= 30) {
         maintm = 0; mainproc = 1; zxon = 0;
+        nopause = 0;
       }
     }
     else {
       if (maintm == 1) {
-        updatescore(score, nokori);
         adshow();
         waitpause = 1;
       }
@@ -3352,8 +3853,8 @@ void Mainprogram() {
         if (waitpause) paused = 1;
       }
       if (maintm >= 30) {
-          adhide();
-          maintm = 0; mainproc = 1; zxon = 0;
+        adhide();
+        maintm = 0; mainproc = 1; zxon = 0;
       }
     }
   }    //if (mainproc==10){
@@ -3362,36 +3863,15 @@ void Mainprogram() {
   //タイトル
   if (mainproc == 100) {
     maintm++; xx[0] = 0;
-    if (maintm <= 10) {maintm = 11; sta = 1; stb = 1; stc = 0; over = 0; }
+    if (sta < 1) {
+      maintm = 11; sta = 1; stb = 1; stc = 0;
+    }
 
-    /*
-    if (input_keydown(KEY_INPUT_1) == 1) {sta = 1; stb = 1; stc = 0; }
-    if (input_keydown(KEY_INPUT_2) == 1) {sta = 1; stb = 2; stc = 0; }
-    if (input_keydown(KEY_INPUT_3) == 1) {sta = 1; stb = 3; stc = 0; }
-    if (input_keydown(KEY_INPUT_4) == 1) {sta = 1; stb = 4; stc = 0; }
-    if (input_keydown(KEY_INPUT_5) == 1) {sta = 2; stb = 1; stc = 0; }
-    if (input_keydown(KEY_INPUT_6) == 1) {sta = 2; stb = 2; stc = 0; }
-    if (input_keydown(KEY_INPUT_7) == 1) {sta = 2; stb = 3; stc = 0; }
-    if (input_keydown(KEY_INPUT_8) == 1) {sta = 2; stb = 4; stc = 0; }
-    if (input_keydown(KEY_INPUT_9) == 1) {sta = 3; stb = 1; stc = 0; }
-    if (input_keydown(KEY_INPUT_0) == 1) {xx[0] = 1; over = 1; }
-    */
-
-    //if (CheckHitKeyAll() == 0){end();}
-    if (key & PAD_INPUT_ACTION) { xx[0] = 1; }
-    //if (input_keydown(KEY_INPUT_RETURN) == 1) {xx[0] = 1; }
-    //if (input_keydown(KEY_INPUT_SPACE)==1){xx[0]=1;}
-    //if (input_keydown(KEY_INPUT_Z) == 1) {xx[0] = 1; }
+    // use dlm_start to start game.
+    //if (key != 0) { xx[0] = 1; }
 
     if (xx[0] == 1) {
-      mainproc = 10; zxon = 0; maintm = 0;
-      nokori = 2;
-
-      fast = 0; trap = 0; tyuukan = 0;
-
-#ifdef DEBUG_LEVEL
-      {sta = 2; stb = 4; stc = 2; tyuukan = 1; }
-#endif
+      dlm_start();
     }
 
   }    //100
@@ -3415,14 +3895,14 @@ void tekizimen() {
       xx[1] = 2000;    //anobia[t]
 
       xx[8] = sa[tt] - fx; xx[9] = sb[tt] - fy;
-      if (aa[t] + anobia[t] - fx > xx[8] - xx[0] && aa[t] - fx<xx[8] + xx[2] && ab[t] + anobib[t] - fy>xx[9] + xx[1] * 3 / 4 && ab[t] - fy < xx[9] + sd[tt] - xx[2]) {aa[t] = xx[8] - xx[0] - anobia[t] + fx; amuki[t] = 0; }
-      if (aa[t] + anobia[t] - fx > xx[8] + sc[tt] - xx[0] && aa[t] - fx<xx[8] + sc[tt] + xx[0] && ab[t] + anobib[t] - fy>xx[9] + xx[1] * 3 / 4 && ab[t] - fy < xx[9] + sd[tt] - xx[2]) {aa[t] = xx[8] + sc[tt] + xx[0] + fx; amuki[t] = 1; }
+      if (aa[t] + anobia[t] - fx > xx[8] - xx[0] && aa[t] - fx<xx[8] + xx[2] && ab[t] + anobib[t] - fy>xx[9] + xx[1] * 3 / 4 && ab[t] - fy < xx[9] + sd[tt] - xx[2]) { aa[t] = xx[8] - xx[0] - anobia[t] + fx; amuki[t] = 0; }
+      if (aa[t] + anobia[t] - fx > xx[8] + sc[tt] - xx[0] && aa[t] - fx<xx[8] + sc[tt] + xx[0] && ab[t] + anobib[t] - fy>xx[9] + xx[1] * 3 / 4 && ab[t] - fy < xx[9] + sd[tt] - xx[2]) { aa[t] = xx[8] + sc[tt] + xx[0] + fx; amuki[t] = 1; }
 
       //if (aa[t]+anobia[t]-fx>xx[8]+xx[0] && aa[t]-fx<xx[8]+sc[tt]-xx[0] && ab[t]+anobib[t]-fy>xx[9] && ab[t]+anobib[t]-fy<xx[9]+xx[1] && ad[t]>=-100){ab[t]=sb[tt]-fy-anobib[t]+100+fy;ad[t]=0;}//mzimen=1;}
-      if (aa[t] + anobia[t] - fx > xx[8] + xx[0] && aa[t] - fx<xx[8] + sc[tt] - xx[0] && ab[t] + anobib[t] - fy>xx[9] && ab[t] + anobib[t] - fy < xx[9] + sd[tt] - xx[1] && ad[t] >= -100) {ab[t] = sb[tt] - fy - anobib[t] + 100 + fy; ad[t] = 0; axzimen[t] = 1; }
+      if (aa[t] + anobia[t] - fx > xx[8] + xx[0] && aa[t] - fx<xx[8] + sc[tt] - xx[0] && ab[t] + anobib[t] - fy>xx[9] && ab[t] + anobib[t] - fy < xx[9] + sd[tt] - xx[1] && ad[t] >= -100) { ab[t] = sb[tt] - fy - anobib[t] + 100 + fy; ad[t] = 0; axzimen[t] = 1; }
 
       if (aa[t] + anobia[t] - fx > xx[8] + xx[0] && aa[t] - fx<xx[8] + sc[tt] - xx[0] && ab[t] - fy>xx[9] + sd[tt] - xx[1] && ab[t] - fy < xx[9] + sd[tt] + xx[0]) {
-        ab[t] = xx[9] + sd[tt] + xx[0] + fy; if (ad[t] < 0) {ad[t] = -ad[t] * 2 / 3; } //axzimen[t]=1;
+        ab[t] = xx[9] + sd[tt] + xx[0] + fy; if (ad[t] < 0) { ad[t] = -ad[t] * 2 / 3; } //axzimen[t]=1;
       }
 
     }
@@ -3445,10 +3925,10 @@ void tekizimen() {
           //if (ttype[tt]==117 && txtype[t]==1){ad[t]=-1500;}
           if (!(ttype[tt] == 117)) {
             //if (!(ttype[tt]==120 && txtype[t]==0)){
-            if (aa[t] + anobia[t] - fx > xx[8] + xx[0] && aa[t] - fx<xx[8] + xx[1] - xx[0] *1 && ab[t] + anobib[t] - fy>xx[9] && ab[t] + anobib[t] - fy < xx[9] + xx[1] && ad[t] >= -100) {
+            if (aa[t] + anobia[t] - fx > xx[8] + xx[0] && aa[t] - fx<xx[8] + xx[1] - xx[0] * 1 && ab[t] + anobib[t] - fy>xx[9] && ab[t] + anobib[t] - fy < xx[9] + xx[1] && ad[t] >= -100) {
               ab[t] = xx[9] - anobib[t] + 100 + fy; ad[t] = 0; axzimen[t] = 1;
               //ジャンプ台
-              if (ttype[tt] == 120) {ad[t] = -1600; azimentype[t] = 30; }
+              if (ttype[tt] == 120) { ad[t] = -1600; azimentype[t] = 30; }
               //}
 
             }
@@ -3458,8 +3938,8 @@ void tekizimen() {
 
         //下
         if (ttype[tt] != 117) {
-          if (aa[t] + anobia[t] - fx > xx[8] + xx[0] && aa[t] - fx<xx[8] + xx[1] - xx[0] *1 && ab[t] - fy>xx[9] + xx[1] - xx[1] && ab[t] - fy < xx[9] + xx[1] + xx[0]) {
-            ab[t] = xx[9] + xx[1] + xx[0] + fy; if (ad[t] < 0) {ad[t] = 0; } //=-ad[t]*2/3;}
+          if (aa[t] + anobia[t] - fx > xx[8] + xx[0] && aa[t] - fx<xx[8] + xx[1] - xx[0] * 1 && ab[t] - fy>xx[9] + xx[1] - xx[1] && ab[t] - fy < xx[9] + xx[1] + xx[0]) {
+            ab[t] = xx[9] + xx[1] + xx[0] + fy; if (ad[t] < 0) { ad[t] = 0; } //=-ad[t]*2/3;}
             //if (ttype[t]==7){
             //for (t2=0;t2<tmax;t2++){if (ttype[t2]==5){ttype[t2]=6;}else if (ttype[t2]==6){ttype[t2]=5;}}
             //}
@@ -3469,14 +3949,15 @@ void tekizimen() {
         //左右
         xx[27] = 0;
         if ((atype[t] >= 100 || (ttype[tt] != 7 || (ttype[tt] == 7 && atype[t] == 2))) && ttype[tt] != 117) {
-          if (aa[t] + anobia[t] - fx > xx[8] && aa[t] - fx<xx[8] + xx[2] && ab[t] + anobib[t] - fy>xx[9] + xx[1] / 2 - xx[0] && ab[t] - fy < xx[9] + xx[2]) {aa[t] = xx[8] - anobia[t] + fx; ac[t] = 0; amuki[t] = 0; xx[27] = 1; }
-          if (aa[t] + anobia[t] - fx > xx[8] + xx[1] - xx[0] * 2 && aa[t] - fx<xx[8] + xx[1] && ab[t] + anobib[t] - fy>xx[9] + xx[1] / 2 - xx[0] && ab[t] - fy < xx[9] + xx[2]) {aa[t] = xx[8] + xx[1] + fx; ac[t] = 0; amuki[t] = 1; xx[27] = 1; }
+          if (aa[t] + anobia[t] - fx > xx[8] && aa[t] - fx<xx[8] + xx[2] && ab[t] + anobib[t] - fy>xx[9] + xx[1] / 2 - xx[0] && ab[t] - fy < xx[9] + xx[2]) { aa[t] = xx[8] - anobia[t] + fx; ac[t] = 0; amuki[t] = 0; xx[27] = 1; }
+          if (aa[t] + anobia[t] - fx > xx[8] + xx[1] - xx[0] * 2 && aa[t] - fx<xx[8] + xx[1] && ab[t] + anobib[t] - fy>xx[9] + xx[1] / 2 - xx[0] && ab[t] - fy < xx[9] + xx[2]) { aa[t] = xx[8] + xx[1] + fx; ac[t] = 0; amuki[t] = 1; xx[27] = 1; }
           //こうらブレイク
           if (xx[27] == 1 && (ttype[tt] == 7 || ttype[tt] == 1) && atype[t] == 2) {
             if (ttype[tt] == 7) {
               soundplay(4); ttype[tt] = 3;
               eyobi(ta[tt] + 10, tb[tt], 0, -800, 0, 40, 3000, 3000, 0, 16);
-            } else if (ttype[tt] == 1) {
+            }
+            else if (ttype[tt] == 1) {
               soundplay(3);
               eyobi(ta[tt] + 1200, tb[tt] + 1200, 300, -1000, 0, 160, 1000, 1000, 1, 120);
               eyobi(ta[tt] + 1200, tb[tt] + 1200, -300, -1000, 0, 160, 1000, 1000, 1, 120);
@@ -3504,7 +3985,7 @@ void tekizimen() {
     }
     //剣とってクリア
     if (ttype[tt] == 140) {
-      if (ab[t] - fy > xx[9] - xx[0] * 2 - 2000 && ab[t] - fy<xx[9] + xx[1] - xx[0] *2 + 2000 && aa[t] + anobia[t] - fx>xx[8] - 400 && aa[t] - fx < xx[8] + xx[1]) {
+      if (ab[t] - fy > xx[9] - xx[0] * 2 - 2000 && ab[t] - fy<xx[9] + xx[1] - xx[0] * 2 + 2000 && aa[t] + anobia[t] - fx>xx[8] - 400 && aa[t] - fx < xx[8] + xx[1]) {
         ta[tt] = -800000; //soundplay(4);
         sracttype[20] = 1; sron[20] = 1;
       }
@@ -3597,25 +4078,25 @@ void stage() {
       xx[10] = 0;
       if (stagedate[t][tt] >= 1 && stagedate[t][tt] <= 255) xx[10] = (int)stagedate[t][tt];
       xx[21] = tt * 29; xx[22] = t * 29 - 12; xx[23] = xx[10];
-      if (xx[10] >= 1 && xx[10] <= 19 && xx[10] != 9) {tyobi(tt * 29, t * 29 - 12, xx[10]); }
-      if (xx[10] >= 20 && xx[10] <= 29) {sra[srco] = xx[21] * 100; srb[srco] = xx[22] * 100; src[srco] = 3000; srtype[srco] = 0; srco++; if (srco >= srmax) srco = 0; }
-      if (xx[10] == 30) {sa[sco] = xx[21] * 100; sb[sco] = xx[22] * 100; sc[sco] = 3000; sd[sco] = 6000; stype[sco] = 500; sco++; if (sco >= smax) sco = 0; }
-      if (xx[10] == 40) {sa[sco] = xx[21] * 100; sb[sco] = xx[22] * 100; sc[sco] = 6000; sd[sco] = 3000; stype[sco] = 1; sco++; if (sco >= smax) sco = 0; }
-      if (xx[10] == 41) {sa[sco] = xx[21] * 100 + 500; sb[sco] = xx[22] * 100; sc[sco] = 5000; sd[sco] = 3000; stype[sco] = 2; sco++; if (sco >= smax) sco = 0; }
+      if (xx[10] >= 1 && xx[10] <= 19 && xx[10] != 9) { tyobi(tt * 29, t * 29 - 12, xx[10]); }
+      if (xx[10] >= 20 && xx[10] <= 29) { sra[srco] = xx[21] * 100; srb[srco] = xx[22] * 100; src[srco] = 3000; srtype[srco] = 0; srco++; if (srco >= srmax) srco = 0; }
+      if (xx[10] == 30) { sa[sco] = xx[21] * 100; sb[sco] = xx[22] * 100; sc[sco] = 3000; sd[sco] = 6000; stype[sco] = 500; sco++; if (sco >= smax) sco = 0; }
+      if (xx[10] == 40) { sa[sco] = xx[21] * 100; sb[sco] = xx[22] * 100; sc[sco] = 6000; sd[sco] = 3000; stype[sco] = 1; sco++; if (sco >= smax) sco = 0; }
+      if (xx[10] == 41) { sa[sco] = xx[21] * 100 + 500; sb[sco] = xx[22] * 100; sc[sco] = 5000; sd[sco] = 3000; stype[sco] = 2; sco++; if (sco >= smax) sco = 0; }
 
-      if (xx[10] == 43) {sa[sco] = xx[21] * 100; sb[sco] = xx[22] * 100 + 500; sc[sco] = 2900; sd[sco] = 5300; stype[sco] = 1; sco++; if (sco >= smax) sco = 0; }
-      if (xx[10] == 44) {sa[sco] = xx[21] * 100; sb[sco] = xx[22] * 100 + 700; sc[sco] = 3900; sd[sco] = 5000; stype[sco] = 5; sco++; if (sco >= smax) sco = 0; }
+      if (xx[10] == 43) { sa[sco] = xx[21] * 100; sb[sco] = xx[22] * 100 + 500; sc[sco] = 2900; sd[sco] = 5300; stype[sco] = 1; sco++; if (sco >= smax) sco = 0; }
+      if (xx[10] == 44) { sa[sco] = xx[21] * 100; sb[sco] = xx[22] * 100 + 700; sc[sco] = 3900; sd[sco] = 5000; stype[sco] = 5; sco++; if (sco >= smax) sco = 0; }
 
       //これなぜかバグの原因ｗ
       if (xx[10] >= 50 && xx[10] <= 79) {
         ba[bco] = xx[21] * 100; bb[bco] = xx[22] * 100; btype[bco] = xx[23] - 50; bco++; if (bco >= bmax) bco = 0;
       }
 
-      if (xx[10] >= 80 && xx[10] <= 89) {na[nco] = xx[21] * 100; nb[nco] = xx[22] * 100; ntype[nco] = xx[23] - 80; nco++; if (nco >= nmax) nco = 0; }
+      if (xx[10] >= 80 && xx[10] <= 89) { na[nco] = xx[21] * 100; nb[nco] = xx[22] * 100; ntype[nco] = xx[23] - 80; nco++; if (nco >= nmax) nco = 0; }
 
       //コイン
-      if (xx[10] == 9) {tyobi(tt * 29, t * 29 - 12, 800); }
-      if (xx[10] == 99) {sa[sco] = xx[21] * 100; sb[sco] = xx[22] * 100; sc[sco] = 3000; sd[sco] = (12 - t) * 3000; stype[sco] = 300; sco++; if (sco >= smax) sco = 0; }
+      if (xx[10] == 9) { tyobi(tt * 29, t * 29 - 12, 800); }
+      if (xx[10] == 99) { sa[sco] = xx[21] * 100; sb[sco] = xx[22] * 100; sc[sco] = 3000; sd[sco] = (12 - t) * 3000; stype[sco] = 300; sco++; if (sco >= smax) sco = 0; }
     }
   }
 
@@ -3636,6 +4117,7 @@ void stage() {
   //tyobi(1,2,3);
 
 
+  dlm_stagestart();
 
 } //stage()
 
@@ -3663,8 +4145,8 @@ void stagep() {
 
     //new byte stagedate[16][801]={
 
-    //                                                                                                                                                                                     中間                                                                                                                                                                                                                                                           
-    byte stagedatex[17][1001]={
+    //                                                                                                                                                                                     中間
+    byte stagedatex[17][1001] = {
       { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
       { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,82, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
       { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,82, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,98, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
@@ -3681,7 +4163,7 @@ void stagep() {
       { 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 5, 5, 5, 5, 5, 5, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 0, 5, 5, 5, 5, 5, 5, 5} ,
       { 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 0, 0, 0, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 0, 0, 0, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 0, 0, 0, 0, 0, 6, 6, 6, 6, 6, 6, 6, 6, 0, 0, 0, 6, 6, 6, 6, 6, 6, 0, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 0, 6, 6, 6, 6, 6, 6, 6, 6, 0, 0, 0, 0} ,
       { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-    } ;
+    };
 
 
     //追加情報
@@ -3965,7 +4447,7 @@ void stagep() {
   //必要BGM+SE
 
   //1-3(地上)
-  if (sta == 1 && stb == 3 && stc == 6) {stc = 0; }
+  if (sta == 1 && stb == 3 && stc == 6) { stc = 0; }
   if (sta == 1 && stb == 3 && stc == 0) {
 
     //soundstop(0);
@@ -4066,7 +4548,7 @@ void stagep() {
 
 
 
-    if (stagepoint == 1) {stagepoint = 0; ma = 4500; mb = -3000; tyuukan = 0; }
+    if (stagepoint == 1) { stagepoint = 0; ma = 4500; mb = -3000; tyuukan = 0; }
 
 
     for (tt = 0; tt <= 1000; tt++) {
@@ -4837,7 +5319,7 @@ void stagep() {
       { 0, 0, 0, 0, 0, 0,82, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 1, 0, 0, 0, 1, 7, 0, 0, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
       { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
       { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0,10, 4, 4, 4, 0,54, 0,54, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
-      { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 0, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
+      { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,58, 0, 0, 0, 0, 0, 0, 0, 0,30, 0, 0, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 0, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
       { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 4, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
       { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
       { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 0, 4, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 0, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} ,
@@ -4935,10 +5417,12 @@ void stagep() {
     if (stc == 0) {
       ma = 7500;
       mb = 3000 * 4;
-    } else {
+    }
+    else {
       ma = 19500;
       mb = 3000 * 11;
       stc = 0;
+      dlm_save();
     }
     bgmchange(105);
     stagecolor = 4;
@@ -5539,9 +6023,9 @@ void ayobi(int xa, int xb, int xc, int xd, int xnotm, int xtype, int xxtype) {
 
 
       //大砲音
-      if (xtype == 7 && soundcheck(10) == 0) {soundplay(10); }
+      if (xtype == 7 && soundcheck(10) == 0) { soundplay(10); }
       //ファイア音
-      if (xtype == 10 && soundcheck(18) == 0) {soundplay(18); }
+      if (xtype == 10 && soundcheck(18) == 0) { soundplay(18); }
 
 
       azimentype[aco] = 1;
@@ -5584,9 +6068,9 @@ void ayobi(int xa, int xb, int xc, int xd, int xnotm, int xtype, int xxtype) {
          */
       }
 
-      if (xtype == 87) {atm[aco] = getrand(179) + (-90); }
+      if (xtype == 87) { atm[aco] = getrand(179) + (-90); }
 
-      aco += 1; if (aco >= amax - 1) {aco = 0; }
+      aco += 1; if (aco >= amax - 1) { aco = 0; }
     } //t1
 
     //if (bz[t]==1){bz[t]=0;}
